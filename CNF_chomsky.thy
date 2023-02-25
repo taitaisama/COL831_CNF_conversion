@@ -7,26 +7,26 @@ section "Basic modelling"
 datatype ('n, 't) Elem = NT "'n" | T "'t"
 type_synonym ('n, 't) PartialEvaluation = "('n, 't) Elem list"
 type_synonym ('n, 't) Rule = "'n \<times> ('n, 't) PartialEvaluation"
-type_synonym ('n, 't) Rules = "('n, 't) Rule set"
-type_synonym ('n, 't) CFG = "'n \<times> ('n, 't) Rules"
+type_synonym ('n, 't) RuleSet = "('n, 't) Rule set"
+type_synonym ('n, 't) CFG = "'n \<times> ('n, 't) RuleSet"
 
-definition Productions :: "('n, 't)Rules \<Rightarrow> (('n, 't)PartialEvaluation \<times> ('n, 't)PartialEvaluation) set"
+definition Productions :: "('n, 't)RuleSet \<Rightarrow> (('n, 't)PartialEvaluation \<times> ('n, 't)PartialEvaluation) set"
   where "Productions G = {(l @ [NT(N)] @ r, l @ rhs @ r) | l N r rhs. (N, rhs) \<in> G}"
 
-definition ProductionStep :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't)Rules \<Rightarrow> ('n, 't)PartialEvaluation \<Rightarrow> bool"  ("_ -_\<rightarrow> _" [60, 61, 60] 61) 
+definition ProductionStep :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't)RuleSet \<Rightarrow> ('n, 't)PartialEvaluation \<Rightarrow> bool"  ("_ -_\<rightarrow> _" [60, 61, 60] 61) 
   where "w -G\<rightarrow> w' \<equiv> (w, w') \<in> Productions G"
 
-fun ProducesInN :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) Rules \<Rightarrow> nat \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>_ _" [60, 61, 61, 60] 61)
+fun ProducesInN :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> nat \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>_ _" [60, 61, 61, 60] 61)
   where "s -G\<rightarrow>\<^sup>0 t = (s = t)" | 
         "ProducesInN s G (Suc(n)) t = (\<exists> r. s -G\<rightarrow> r \<and> s -G\<rightarrow>\<^sup>n t)"
 
-definition Produces :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) Rules \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>* _" [60, 61, 60] 61) 
+definition Produces :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>* _" [60, 61, 60] 61) 
   where "w -G\<rightarrow>\<^sup>* w' \<equiv> \<exists> n. w -G\<rightarrow>\<^sup>n w'"
 
 definition IsTerminalWord :: "('n, 't) Elem list \<Rightarrow> bool"
   where "IsTerminalWord El \<equiv> \<not>(\<exists> a. NT(a) \<in> set El)"
 
-definition Language :: "'n \<Rightarrow> ('n, 't) Rules \<Rightarrow> (('n, 't) Elem list) set" ("\<lbrakk>_\<rbrakk>\<^sub>_" [60, 61])
+definition Language :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> (('n, 't) Elem list) set" ("\<lbrakk>_\<rbrakk>\<^sub>_" [60, 61])
   where "\<lbrakk>S\<rbrakk>\<^sub>G = { w | w. IsTerminalWord w \<and> [NT(S)] -G\<rightarrow>\<^sup>* w}"
 
 definition Lang :: "('n, 't) CFG \<Rightarrow> (('n, 't) Elem list) set" ("\<lbrakk>_\<rbrakk>")
@@ -148,6 +148,7 @@ proof-
   from 2 and 3 show ?thesis
     using "1" by fastforce
 qed
+
 
 definition transformBinSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
   where "transformBinSingle G1 N G2 \<equiv> \<exists> S R1 R2 R3 Rs1 Rs2 S1 a b c. 
@@ -289,21 +290,21 @@ proof-
     by blast
 qed
 
-definition NewUnitTransRules :: "'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) Rules \<Rightarrow> ('n, 't) Rules"
-  where "NewUnitTransRules A B R1 \<equiv> {R2 | R2 Rhs. (B, Rhs) \<in> R1 \<and> (A, Rhs) = R2}"
+definition NewUnitTransRuleSet :: "'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "NewUnitTransRuleSet A B R1 \<equiv> {R2 | R2 Rhs. (B, Rhs) \<in> R1 \<and> (A, Rhs) = R2}"
 
 definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
   where "transformUnitSingle G1 A B G2 \<equiv> \<exists> S Rs1 Rs2. 
                                    (S, Rs1) = G1
                                    \<and> (S, Rs2) = G2
                                    \<and> (A, [NT(B)]) \<in> Rs1
-                                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRules A B Rs1)) - {(A, [NT(B)])}"
+                                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet A B Rs1)) - {(A, [NT(B)])}"
 
 lemma Unit_Part1 :
   assumes a: "(S, Rs1) = G1"
   assumes b: "(S, Rs2) = G2"
   assumes c: "(A, [NT B]) \<in> Rs1"
-  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRules A B Rs1 - {(A, [NT B])}"
+  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
   assumes e: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
@@ -320,7 +321,7 @@ lemma Unit_Part2 :
   assumes a: "(S, Rs1) = G1"
   assumes b: "(S, Rs2) = G2"
   assumes c: "(A, [NT B]) \<in> Rs1"
-  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRules A B Rs1 - {(A, [NT B])}"
+  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
   assumes e: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
@@ -341,7 +342,7 @@ proof-
                   (S, Rs1) = G1 \<and>
                   (S, Rs2) = G2 \<and> 
                   (A, [NT B]) \<in> Rs1 \<and> 
-                  Rs2 = Rs1 \<union> NewUnitTransRules A B Rs1 - {(A, [NT B])}"
+                  Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
                   (is "\<exists>S Rs1 Rs2. ?P S Rs1 Rs2")
     by (unfold transformUnitSingle_def, auto)
   then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
@@ -349,6 +350,85 @@ proof-
     by (meson Unit_Part1)
   from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
     by (meson Unit_Part2)
+  from 2 and 3 show ?thesis
+    by blast
+qed
+
+definition isNTToNTProduction :: "('n, 't) Rule \<Rightarrow> bool"
+  where "isNTToNTProduction R \<equiv> \<exists> N1 N2. R = (N1, [NT N2])"
+
+definition NTToNTProductionSet :: "('n, 't) RuleSet \<Rightarrow> ('n \<times> 'n) set"
+  where "NTToNTProductionSet Rs \<equiv> {(N1, N2). (N1, [NT N2]) \<in> Rs}\<^sup>+"
+
+definition NewUnitTransRuleSet2 :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "NewUnitTransRuleSet2 A R1 \<equiv> {R2 | B R2 Rhs. (B, Rhs) \<in> R1 
+                                          \<and> (A, Rhs) = R2
+                                          \<and> (A, B) \<in> NTToNTProductionSet R1
+                                          \<and> \<not>isNTToNTProduction R2}"
+
+definition NTToNTSetForA :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "NTToNTSetForA A R1 \<equiv> {R2 | R2 B. (A, [NT B]) = R2}"
+
+definition transformUnitSingle2 :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformUnitSingle2 G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
+                                   (S, Rs1) = G1
+                                   \<and> (S, Rs2) = G2
+                                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet2 A Rs1)) - (NTToNTSetForA A Rs1)"
+
+lemma Unit2_Part1:
+  assumes a: "(S, Rs1) = G1"
+  assumes b: "(S, Rs2) = G2"
+  assumes c: "Rs2 = Rs1 \<union>
+       NewUnitTransRuleSet2 A Rs1 -
+       NTToNTSetForA A Rs1"
+  assumes d: "x \<in> \<lbrakk>G1\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
+proof-
+  from a and d have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
+    by (simp add: Lang_def Language_def Produces_def, auto)
+  then obtain n where 1: "?P n" by blast
+  from d have 2: "IsTerminalWord x"
+    by (simp add: Lang_def Language_def Produces_def)
+  from 1 and 2 and b and c show ?thesis
+    by(simp add: NewUnitTransRuleSet2_def NTToNTProductionSet_def isNTToNTProduction_def NTToNTSetForA_def IsTerminalWord_def, induction n, auto)
+qed
+
+
+lemma Unit2_Part2:
+  assumes a: "(S, Rs1) = G1"
+  assumes b: "(S, Rs2) = G2"
+  assumes c: "Rs2 = Rs1 \<union>
+       NewUnitTransRuleSet2 A Rs1 -
+       NTToNTSetForA A Rs1"
+  assumes d: "x \<in> \<lbrakk>G2\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
+proof-
+  from b and d have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
+    by (simp add: Lang_def Language_def Produces_def, auto)
+  then obtain n where 1: "?P n" by blast
+  from d have 2: "IsTerminalWord x"
+    by (simp add: Lang_def Language_def Produces_def)
+  from 1 and 2 and a and c show ?thesis
+    by(induction n, simp add: IsTerminalWord_def, auto)
+qed
+
+theorem verifyTransformUnit2 :
+  assumes a: "transformUnitSingle2 G1 A G2"
+  shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+proof-
+  from a have 0: "\<exists>S Rs1 Rs2.
+       (S, Rs1) = G1 \<and>
+       (S, Rs2) = G2 \<and>
+       Rs2 =
+       Rs1 \<union>
+       NewUnitTransRuleSet2 A Rs1 -
+       NTToNTSetForA A Rs1" (is "\<exists>S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (unfold transformUnitSingle2_def)
+  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
+  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
+    by (meson Unit2_Part1)
+  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
+    by (meson Unit2_Part2)
   from 2 and 3 show ?thesis
     by blast
 qed
