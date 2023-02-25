@@ -432,5 +432,129 @@ proof-
   from 2 and 3 show ?thesis
     by blast
 qed
+(*
+type_synonym ('n, 't) Grammar = "'n \<times> ('n, 't) Rule list"
+definition convCFG :: "('n, 't) Grammar \<Rightarrow> ('n, 't) CFG"
+  where "convCFG G = (fst G, set (snd G))"
+
+definition transTerm :: "('n, 't) Grammar \<Rightarrow> 'n \<Rightarrow> ('n, 't) Grammar \<Rightarrow> bool"
+  where "transTerm G1 N G2 \<equiv> transformTermSingle (convCFG(G1)) N (convCFG(G2))" 
+
+fun TerminalCount :: "('n, 't) Elem list \<Rightarrow> nat"
+  where "TerminalCount Nil = 0" |
+        "TerminalCount (T(a) # R) = 1 + TerminalCount R" |
+        "TerminalCount (NT(a) # R) = TerminalCount R"
+
+fun TerminalCountNonSingle :: "('n, 't) Elem list \<Rightarrow> nat"
+  where "TerminalCountNonSingle ([T(a)]) = 0" |
+        "TerminalCountNonSingle R = TerminalCount R"
+
+fun MetricTerm1 :: "('n, 't) Rule list \<Rightarrow> nat"
+  where "MetricTerm1 Nil = 0" |
+        "MetricTerm1 ((_, R) # Rs) = (TerminalCountNonSingle R) + (MetricTerm1 Rs)"
+
+fun MetricTerm :: "('n, 't) Grammar \<Rightarrow> nat"
+  where "MetricTerm (S, R) = MetricTerm1 R"
+
+theorem TerminationStart :
+  assumes a: "transTerm G1 N G2"
+  shows      "MetricTerm G1 > MetricTerm G2"
+  using a apply-
+  apply(simp add: transTerm_def transformTermSingle_def convCFG_def)
+  sledgehammer  
+*)
+
+definition finiteCFG :: "('n, 't) CFG \<Rightarrow> bool"
+  where "finiteCFG G \<equiv> \<exists> S R. (S, R) = G \<and> finite R"
+
+lemma StartFinite:
+  assumes a: "transformStart G1 S0 G2"
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG G2"
+proof-
+  from a and b show ?thesis
+    by (metis Pair_inject finiteCFG_def finite_insert transformStart_def)
+qed
+
+lemma TermFinite:
+  assumes a: "transformTermSingle G1 S0 G2"
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG G2"
+proof-
+  from a and b show ?thesis
+    by (unfold transformTermSingle_def finiteCFG_def, auto)
+qed
+
+lemma BinFinite:
+  assumes a: "transformBinSingle G1 S0 G2"
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG G2"
+proof-
+  from a and b show ?thesis
+    by (unfold transformBinSingle_def finiteCFG_def, auto)
+qed
+
+definition DelAllNullableNTsFromRules :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "DelAllNullableNTsFromRules S X = {R | R N. N \<noteq> S \<and> R \<in> DelNTFromRule N X \<and> Nil \<in> \<lbrakk>N\<rbrakk>\<^sub>X}"
+
+definition RemoveAllEpsilonProds :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "RemoveAllEpsilonProds S X = {R | R N Rhs. R \<in> X \<and> (N, Rhs) = R \<and> (N = S \<or> Rhs \<noteq> Nil)}"
+
+definition transformDel2 :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformDel2 G1 G2 \<equiv> \<exists> S Rs1 Rs2.
+                                (S, Rs1) = G1
+                                \<and> (S, Rs2) = G2
+                                \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules S Rs1)"
+
+lemma Del2_Part1:   
+  assumes a: "(S, Rs1) = G1"
+  assumes b: "(S, Rs2) = G2"
+  assumes c: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules S Rs1)"
+  assumes d: "x \<in> \<lbrakk>G1\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
+proof-
+  from a and d have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
+    by (simp add: Lang_def Language_def Produces_def, auto)
+  then obtain n where 1: "?P n" by blast
+  from d have 2: "IsTerminalWord x"
+    by (simp add: Lang_def Language_def Produces_def)
+  from 1 and 2 and b and c show ?thesis
+    by(induction n, simp add: RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNTFromRule_def DelNTFromRuleSet_def IsTerminalWord_def, auto)
+qed
+
+lemma Del2_Part2:   
+  assumes a: "(S, Rs1) = G1"
+  assumes b: "(S, Rs2) = G2"
+  assumes c: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules S Rs1)"
+  assumes d: "x \<in> \<lbrakk>G2\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
+proof-
+  from b and d have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
+    by (simp add: Lang_def Language_def Produces_def, auto)
+  then obtain n where 1: "?P n" by blast
+  from d have 2: "IsTerminalWord x"
+    by (simp add: Lang_def Language_def Produces_def)
+  from 1 and 2 and b and c show ?thesis
+    by(induction n, simp add: RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNTFromRule_def DelNTFromRuleSet_def IsTerminalWord_def, auto)
+qed
+  
+theorem verifyTransformDel2: 
+  assumes a: "transformDel2 G1 G2"
+  shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+proof-
+  from a have 0:"\<exists> S Rs1 Rs2.
+                 (S, Rs1) = G1
+                 \<and> (S, Rs2) = G2
+                 \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules S Rs1)"
+                 (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+  by (unfold transformDel2_def)
+  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
+  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
+    by (meson Del2_Part1)
+  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
+    by (meson Del2_Part2)
+  from 2 and 3 show ?thesis
+    by blast
+qed
 
 end
