@@ -38,6 +38,9 @@ definition NTInRule :: "'n \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
 definition NonTerminals :: "('n, 't) CFG \<Rightarrow> ('n, 't) Elem set"
   where "NonTerminals G = {NT(a) | S Rs a R. (S, Rs) = G \<and> R \<in> Rs \<and> NTInRule a R}"
 
+definition ProducingNT :: "('n, 't) Rule \<Rightarrow> 'n"
+  where "ProducingNT R = fst R"
+
 definition TInRule ::  "'t \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
   where "TInRule N R \<equiv> \<exists> S Rhs. (S, Rhs) = R \<and> (T(N) \<in> set Rhs)"
 
@@ -222,10 +225,10 @@ proof-
 qed
 
 definition DelNTFromRuleSet :: "'n \<Rightarrow> (('n, 't) Rule \<times> ('n, 't) Rule) set"
-  where "DelNTFromRuleSet N \<equiv> {((S, l @ NT(N) # r), (S, l @ r)) | S l r. True}\<^sup>*"
+  where "DelNTFromRuleSet N \<equiv> {((S, l @ r), (S, l @ NT(N) # r)) | S l r. True}\<^sup>*"
 
 definition DelNTFromRule :: "'n \<Rightarrow> ('n, 't) Rule set \<Rightarrow> ('n, 't) Rule set"
-  where "DelNTFromRule N R \<equiv> { NR | NR OR. (OR, NR) \<in> DelNTFromRuleSet N \<and> OR \<in> R }"
+  where "DelNTFromRule N R \<equiv> { NR | NR OR. (NR, OR) \<in> DelNTFromRuleSet N \<and> OR \<in> R }"
 
 definition transformDelSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
   where "transformDelSingle G1 N G2 \<equiv> \<exists> S Rs1 Rs2. 
@@ -558,7 +561,7 @@ proof-
 qed
 
 lemma finiteImage:
-  fixes  S1 :: "'a set"
+  fixes  Sk :: "'a set"
   fixes  im :: "'a \<Rightarrow> 'b"
   assumes a : "finite S1"
   shows       "finite (image im S1)"
@@ -761,10 +764,6 @@ qed
 
 
 
-lemma listFinite:
-  fixes      L :: "'a list"
-  shows      "finite (set L)"
-  by auto
 
 fun nthTransitive :: "nat \<Rightarrow> ('a \<times> 'a) set \<Rightarrow> ('a \<times> 'a) set"
   where "nthTransitive 0 S = {}" |
@@ -781,13 +780,106 @@ lemma transitivityMonotonic:
   sledgehammer
 *)
 
-definition RuleRhsSize :: "('n, 't) Rule \<Rightarrow> nat"
-  where "RuleRhsSize R \<equiv> size (snd R)"
+lemma listFinite:
+  fixes      L :: "'a list"
+  shows      "finite (set L)"
+  by auto
+
+definition RuleRhsSubset :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
+  where "RuleRhsSubset R1 R2 \<equiv> set (snd R1) \<subseteq> set (snd R2)" 
+
+definition RuleRhsSize :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
+  where "RuleRhsSize R1 R2 \<equiv> size (snd R1) \<le> size (snd R2)" 
+
+definition RuleLhsSame :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
+  where "RuleLhsSame R1 R2 \<equiv> fst R1 = fst R2" 
 
 lemma DelFinite_Part1:
   fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
   assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  shows      "wf H"
+  assumes b: "(A, B) \<in> H"
+  shows      "(RuleRhsSubset A B)"
+proof-
+  have 0: "\<And> l r a. (set (l @ r)) \<subseteq> (set (l @ a # r))"
+    by (simp add: subsetI)
+  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
+    by simp
+  then obtain S l r where 2: "?P S l r" by blast
+  from 2 and a show ?thesis
+    by (unfold RuleRhsSubset_def, auto)
+qed
+
+lemma DelFinite_Part2:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "(A, B) \<in> H"
+  shows      "(RuleRhsSize A B)"
+proof-
+  have 0: "\<And> l r a. (size (l @ r)) \<le> (size (l @ a # r))"
+    by (simp add: subsetI)
+  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
+    by simp
+  then obtain S l r where 2: "?P S l r" by blast
+  from 2 and a show ?thesis
+    by (unfold RuleRhsSize_def, auto)
+qed
+
+lemma DelFinite_Part3:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "(A, B) \<in> H\<^sup>+"
+  shows      "(RuleRhsSubset A B)"
+
+proof-
+  from a and DelFinite_Part1 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleRhsSubset A) y"
+    by (smt (verit, del_insts) mem_Collect_eq)
+  from 1 have 2: "\<And>y z. (RuleRhsSubset y) z \<Longrightarrow> (RuleRhsSubset A) y \<Longrightarrow> (RuleRhsSubset A) z"
+    by (simp add: RuleRhsSubset_def)
+  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleRhsSubset A) y \<Longrightarrow> (RuleRhsSubset A) z"
+    by (smt (verit, del_insts) DelFinite_Part1 mem_Collect_eq)
+  from 1 and 3 and trancl_induct and b show ?thesis
+    by (smt (verit, ccfv_SIG))
+qed  
+
+
+lemma DelFinite_Part4:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "(A, B) \<in> H\<^sup>+"
+  shows      "(RuleRhsSize A B)"
+
+proof-
+  from a and DelFinite_Part2 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleRhsSize A) y"
+    by (smt (verit, del_insts) mem_Collect_eq)
+  from 1 have 2: "\<And>y z. (RuleRhsSize y) z \<Longrightarrow> (RuleRhsSize A) y \<Longrightarrow> (RuleRhsSize A) z"
+    by (simp add: RuleRhsSize_def)
+  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleRhsSize A) y \<Longrightarrow> (RuleRhsSize A) z"
+    by (smt (verit, del_insts) DelFinite_Part2 mem_Collect_eq)
+  from 1 and 3 and trancl_induct and b show ?thesis
+    by (smt (verit, ccfv_SIG))
+qed  
+
+(*
+(?a, ?b) \<in> ?r\<^sup>+ \<Longrightarrow>
+    (\<And>y. (?a, y) \<in> ?r \<Longrightarrow> ?P y) \<Longrightarrow>
+    (\<And>y z. (?a, y) \<in> ?r\<^sup>+ \<Longrightarrow> (y, z) \<in> ?r \<Longrightarrow> ?P y \<Longrightarrow> ?P z) \<Longrightarrow> ?P ?b
+
+
+lemma MeasureTransitive :
+  fixes      L :: "('a \<times> 'a) set"
+  fixes      f :: "'a \<Rightarrow> nat"
+  assumes a: "L \<subseteq> (measure f)"
+  shows      "L\<^sup>+ \<subseteq> (measure f)"
+  sledgehammer
+*)
+
+(*
+lemma DelFinite_Part1:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  fixes      K :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "K = {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+"
+  shows      "wf K"
 proof-
   from a have 0: "\<And> A B. (A, B) \<in> H \<Longrightarrow> (RuleRhsSize A) < (RuleRhsSize B)"
     by (unfold RuleRhsSize_def, force)
@@ -795,11 +887,137 @@ proof-
     by fastforce
   from wf_measure have 2: "wf (measure RuleRhsSize)"
     by auto
-  from 1 and 2 and wf_subset show ?thesis
+  from 1 and 2 and wf_subset have 3: "wf H"
     by blast
+  from 3 and wf_trancl show ?thesis
+    using a assms(2) by blast
 qed
-    
+*)
 
+lemma DelFinite_Part5:
+  fixes      Rhs :: "('n, 't) Elem list"
+  fixes      N :: "'n"
+  fixes      S :: "'n"
+  fixes      NR :: "('n, 't) Rule"
+  assumes a: "(NR, (S, Rhs)) \<in> DelNTFromRuleSet N"
+  shows      "NR = (S, Rhs) \<or> (NR, (S, Rhs)) \<in> {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+"
+proof-
+  have 0: "\<And> a b L. (a, b) \<in> L\<^sup>* \<Longrightarrow> (a = b) \<or> (a, b) \<in> L\<^sup>+"
+    by (metis rtranclD)
+  from 0 and a show ?thesis
+    by (unfold DelNTFromRuleSet_def, smt (verit, best) "0")
+qed
+
+(*
+lemma WellFoundedChainTermination:
+  fixes      L :: "('a \<times>'a) set"
+  assumes a: "wf L"
+  assumes b: "\<And> A. finite ({(B, A) | B. (B, A) \<in> L})"
+  shows      "\<And> A. finite ({(B, A) | B. (B, A) \<in> L\<^sup>+})"
+  sledgehammer
+*)
+
+lemma subsetListFinite:
+  fixes      S :: "'a set"
+  fixes      H :: "'a list set"
+  fixes      n :: "nat"
+  assumes a: "finite S"
+  assumes b: "H = {L | L. (set L) \<subseteq> S \<and> (size L) \<le> n}"
+  shows      "finite H"
+  using a and b apply-
+  apply(induction n)
+   apply auto[1]
+  using finite_lists_length_le by force
+
+lemma DelFinite_Part6:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "(A, B) \<in> H"
+  shows      "(RuleLhsSame A B)"
+proof-
+  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
+    by simp
+  then obtain S l r where 2: "?P S l r" by blast
+  from 2 and a show ?thesis
+    by (unfold RuleLhsSame_def, auto)
+qed
+
+
+lemma DelFinite_Part7:
+  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
+  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
+  assumes b: "(A, B) \<in> H\<^sup>+"
+  shows      "(RuleLhsSame A B)"
+
+proof-
+  from a and DelFinite_Part6 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleLhsSame A) y"
+    by (smt (verit, del_insts) mem_Collect_eq)
+  from 1 have 2: "\<And>y z. (RuleLhsSame y) z \<Longrightarrow> (RuleLhsSame A) y \<Longrightarrow> (RuleLhsSame A) z"
+    by (simp add: RuleLhsSame_def)
+  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleLhsSame A) y \<Longrightarrow> (RuleLhsSame A) z"
+    by (smt (verit, del_insts) DelFinite_Part6 mem_Collect_eq)
+  from 1 and 3 and trancl_induct and b show ?thesis
+    by (smt (verit, ccfv_SIG))
+qed  
+  
+  
+lemma DelFinite_Part8:
+  fixes      Rhs :: "('n, 't) Elem list"
+  fixes      N :: "'n"
+  fixes      S :: "'n"
+  assumes a: "H = {NR | NR. (NR, (S, Rhs)) \<in> DelNTFromRuleSet N}"
+  shows      "finite H"
+proof-
+  from a and DelFinite_Part5 have 0: "\<And> R. R \<in> H \<Longrightarrow> R = (S, Rhs) \<or> (R, (S, Rhs)) \<in> {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+"
+    by (smt (verit, del_insts) Collect_cong mem_Collect_eq)
+  have 1: "\<And> R. (R, (S, Rhs)) \<in> 
+          {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+
+          \<Longrightarrow> (RuleRhsSubset R) (S, Rhs)"
+    by (simp add: DelFinite_Part3)
+  have 2: "\<And> R. (R, (S, Rhs)) \<in> 
+          {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+
+          \<Longrightarrow> (RuleRhsSize R) (S, Rhs)"
+    by (simp add: DelFinite_Part4)
+  from 1 and a and 0 have 3: "\<And> R. R \<in> H \<Longrightarrow> (RuleRhsSubset R) (S, Rhs)"
+    apply(unfold DelNTFromRuleSet_def)
+    using RuleRhsSubset_def by blast
+  from 2 and a and 0 have 4: "\<And> R. R \<in> H \<Longrightarrow> (RuleRhsSize R) (S, Rhs)"
+    apply(unfold DelNTFromRuleSet_def)
+    using RuleRhsSize_def by blast
+  from 3 have 5: "H \<subseteq> {R | R. (RuleRhsSubset R) (S, Rhs)}"
+    by blast
+  from 4 have 6: "H \<subseteq> {R | R. (RuleRhsSize R) (S, Rhs)}"
+    by blast
+  from listFinite have 7: "finite (set Rhs)"
+    by simp
+  have 8: "{(set Rhs1) | Rhs1. (RuleRhsSubset (S, Rhs1)) (S, Rhs)} \<subseteq> (Pow (set Rhs))"
+    by(unfold RuleRhsSubset_def Pow_def, auto)
+  from 8 and 5 have 9: "\<And> R. R \<in> H \<Longrightarrow> (set (snd R)) \<in> {(set Rhs1) | Rhs1. (RuleRhsSubset (S, Rhs1)) (S, Rhs)}"
+    by (metis (mono_tags, lifting) "3" CollectI RuleRhsSubset_def snd_conv)
+  from 9 and 8 have 10: "H \<subseteq> {S | S. (set (snd S)) \<subseteq> (set Rhs)}"
+    by blast
+  from 6 have 11 : "H \<subseteq> {S | S. (size (snd S)) \<le> (size Rhs)}"
+    by (simp add: RuleRhsSize_def)
+  from 10 and 11 have 12: "H \<subseteq> {S | S. (size (snd S)) \<le> (size Rhs) \<and> (set (snd S)) \<subseteq> (set Rhs)}"
+    by auto
+  from a and 0 have 13: "\<And> R. R \<in> H \<Longrightarrow> (fst R) = S"
+    by (smt (verit, best) DelFinite_Part5 DelFinite_Part7 RuleLhsSame_def fstI mem_Collect_eq)
+  from 13 and 12 have 14: "H \<subseteq> {(S, R) | R. (size R) \<le> (size Rhs) \<and> (set R) \<subseteq> (set Rhs)}"
+    by auto
+  have 15: "\<exists> n. size Rhs \<le> n" (is "\<exists> n. ?P n")
+    by blast
+  then obtain n where 16: "?P n" by blast
+  from 16 and 14 have 17: "H \<subseteq> {(S, R) | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
+    by auto
+  from 17 and subsetListFinite and 7 have 18: "finite {R | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
+    by(rule_tac S="set Rhs" in subsetListFinite, auto)
+  have 19: "{(S, R) | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)} = image (\<lambda> R. (S, R)) {R | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
+    by (auto)
+  from 19 and 18 and 17 and finiteImage show ?thesis
+    by (simp add: finite_subset)
+qed
+
+(*
 lemma DelFinite_Part4:
   fixes      Rhs :: "('n, 't) Elem list"
   fixes      N :: "'n"
@@ -822,49 +1040,82 @@ proof-
           (Rhs1, Rhs2) \<in> {(l @ N # r, l @ r) | l r. True}\<^sup>+ \<Longrightarrow>
           (size Rhs2) < (size Rhs1)"
     sledgehammer
-  
-    
-lemma DelFinite_Part5:
-  fixes      Rhs :: "('n, 't) Elem list"
-  fixes      N :: "'n"
-  fixes      S :: "'n"
-  assumes a: "H = {NR | NR. ((S, Rhs), NR) \<in> DelNTFromRuleSet N}"
-  shows      "finite H"
-proof-
-  have 0:        "\<And>A B S. (A, B) \<in> S\<^sup>* \<Longrightarrow> A = B \<or> (A, B) \<in> S\<^sup>+"
-    by (meson rtranclD)
-  from a have 1: "\<And>A. A \<in> H \<Longrightarrow> ((S, Rhs), A) \<in> {((S, Rhs), (S, l @ r)) | S l r. Rhs = l @ ((NT N) # r)}\<^sup>*"
-    sledgehammer
-  from 0 and 1 have 2: "\<And>A. A \<in> H \<Longrightarrow> 
-      ((S, Rhs), A) \<in> {((S, l @ ((NT N) # r)), (S, l @ r)) | S l r. True}\<^sup>+ \<or> A = (S, Rhs)"
-    by (metis (no_types, lifting))
-  from 2 have 3: "\<And>A. A \<in> H \<Longrightarrow> 
-      ((S, Rhs), A) \<in> insert ((S, Rhs), (S, Rhs)) ({((S, l @ ((NT N) # r)), (S, l @ r)) | S l r. True}\<^sup>+)"
-    by blast
-  
+*)
 
-
-lemma DelFinite_Part3:
+lemma DelFinite_Part9:
   fixes      Rs1 :: "('n, 't) RuleSet"
   fixes      N :: "'n"
   assumes a: "finite Rs1"
   shows      "finite (DelNTFromRule N Rs1)"
-  using a apply-
-  apply(unfold DelNTFromRule_def)
+proof-
+  from DelFinite_Part8 have 0: "\<And> R. finite {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}"
+    apply(rule_tac N="N" and S="fst R" and Rhs="snd R" in DelFinite_Part8)
+    by force
+  have 1: "(DelNTFromRule N Rs1) \<subseteq> \<Union> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}"
+    by(unfold DelNTFromRule_def, auto)
+  from 0 have 2: "\<And> R. R \<in> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}} \<Longrightarrow> finite R"
+    by blast
+  have 3: "{Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}
+           = image (\<lambda> R. {NR |NR. (NR, R) \<in> DelNTFromRuleSet N}) Rs1"
+    by blast
+  from a and 3 and finiteImage have 4: "finite {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}"
+    by auto
+  from 4 and 2 and finite_Union have 5: "finite (\<Union> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}})"
+    by blast
+  from 5 and 1 show ?thesis
+    using finite_subset by auto
+qed
 
-lemma DelFinite_Part4:
+lemma DelFinite_Part10:
+  fixes      Rs1 :: "('n, 't) RuleSet"
+  fixes      N :: "'n"
+  assumes a: "[] \<in> Language N Rs1"
+  shows      "\<exists> R. R \<in> Rs1 \<and> ProducingNT R = N"
+proof-
+  from a have 0: "\<exists> n. [NT N] -Rs1\<rightarrow>\<^sup>n []" (is "\<exists> n. ?P n")
+    by (simp add: Language_def Produces_def)
+  then obtain n where 1: "?P n" by blast
+  from 1 show ?thesis
+    by(induction n, auto)
+qed
+
+lemma DelFinite_Part11:
   fixes      Rs1 :: "('n, 't) RuleSet"
   assumes a: "finite Rs1"
   shows      "finite (DelAllNullableNTsFromRules Rs1)"
-  using a apply-
-  apply (unfold DelAllNullableNTsFromRules_def)
-  sledgehammer
+proof-
+  from DelFinite_Part10 have 0: "\<And> N. [] \<in> Language N Rs1 \<Longrightarrow> \<exists> R. R \<in> Rs1 \<and> ProducingNT R = N"
+    by (auto)
+  from 0 have 1: "{N | N. [] \<in> Language N Rs1} \<subseteq> image ProducingNT Rs1"
+    by auto
+  from 1 have 2: "finite {N | N. [] \<in> Language N Rs1}"
+    by (metis assms finite_surj)
+  from 2 and finiteImage have 3: "{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}
+                                 = image (\<lambda> N. (DelNTFromRule N Rs1)) {N | N. [] \<in> Language N Rs1}"
+    by(auto)
+  from 3 and 2 and finiteImage have 4: "finite {(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}"
+    by auto
+  have 5: "DelAllNullableNTsFromRules Rs1 \<subseteq> \<Union>{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}"
+    by(unfold DelAllNullableNTsFromRules_def, auto)
+  from a and 4 and DelFinite_Part9 and finite_Union have 6: "finite (\<Union>{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1})"
+    apply(rule_tac A="{DelNTFromRule N Rs1 |N. [] \<in> \<lbrakk>N\<rbrakk>\<^sub>Rs1}" in finite_Union, auto)
+    by (simp add: DelFinite_Part9)
+  from 6 and 5 show ?thesis
+    using finite_subset by blast
+qed
 
 lemma DelFinite:
   assumes a: "transformDel2 G1 G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
-  using a and b apply-
-  apply (unfold transformDel2_def)
-  sledgehammer
+proof-
+  have 0: "\<And> R S. RemoveAllEpsilonProds S R \<subseteq> R"
+    by(unfold RemoveAllEpsilonProds_def, auto)
+  from a and b and 0 show ?thesis
+  apply (unfold transformDel2_def finiteCFG_def)
+    by (smt (verit, best) "0" DelFinite_Part11 finite_Un old.prod.inject sup.absorb_iff2)
+qed
+
+
+
 end
