@@ -16,12 +16,15 @@ definition Productions :: "('n, 't)RuleSet \<Rightarrow> (('n, 't)PartialEvaluat
 definition ProductionStep :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't)RuleSet \<Rightarrow> ('n, 't)PartialEvaluation \<Rightarrow> bool"  ("_ -_\<rightarrow> _" [60, 61, 60] 61) 
   where "w -G\<rightarrow> w' \<equiv> (w, w') \<in> Productions G"
 
-fun ProducesInN :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> nat \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>_ _" [60, 61, 62, 60] 61)
+fun ProducesInN :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> nat \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>_ _" [60, 61, 1000, 60] 61)
   where "s -G\<rightarrow>\<^sup>0 t = (s = t)" | 
         "ProducesInN s G (Suc(n)) t = (\<exists> r. s -G\<rightarrow> r \<and> r -G\<rightarrow>\<^sup>n t)"
 
 definition Produces :: "('n, 't) PartialEvaluation \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow> bool" ("_ -_\<rightarrow>\<^sup>* _" [60, 61, 60] 61) 
   where "w -G\<rightarrow>\<^sup>* w' \<equiv> \<exists> n. w -G\<rightarrow>\<^sup>n w'"
+
+definition ProductionRel :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) PartialEvaluation \<Rightarrow>('n, 't) PartialEvaluation \<Rightarrow> bool"
+  where "ProductionRel G w w' \<equiv> Produces w G w'"
 
 definition IsTerminalWord :: "('n, 't) Elem list \<Rightarrow> bool"
   where "IsTerminalWord El \<equiv> \<not>(\<exists> a. NT(a) \<in> set El)"
@@ -109,6 +112,26 @@ proof-
     by(induction n, auto)
   from 4 and 1 and 3 show ?thesis apply(unfold Produces_def) 
     by blast
+qed
+
+lemma transitiveClosureSame:
+  fixes      R :: "('n, 't) RuleSet"
+  assumes a: "(ProductionRel R)\<^sup>+\<^sup>+ a b"
+  shows      "(ProductionRel R) a b"
+proof-
+  from a show ?thesis
+    by(induction rule: tranclp_induct, unfold ProductionRel_def, auto, simp add: transitiveProductions)
+qed
+
+lemma transitiveSetToRel:
+  fixes      f :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
+  fixes      s :: "('a \<times> 'a) set"
+  assumes a: "\<And> a b. (a, b) \<in> s \<Longrightarrow> f a b"
+  assumes b: "(a, b) \<in> s\<^sup>+"
+  shows      "f\<^sup>+\<^sup>+ a b"
+proof-
+  from a and b show ?thesis
+    by (smt (verit, best) trancl_trans_induct tranclp.r_into_trancl tranclp_trans)
 qed
 
 lemma listPrefixSize:
@@ -472,6 +495,7 @@ proof-
   from 11 and 15 show ?thesis by auto
 qed
 
+section "Transforms Definition"
 
 definition transformStart :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool" 
   where "transformStart G1 S0 G2 \<equiv> \<exists> S1 R1 R2. (S1, R1) = G1 
@@ -746,7 +770,6 @@ proof-
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
 qed
 
-
 lemma Term_Part2_induct1:
   assumes a: "transformTermSingle G1 N G2"
   assumes b: "(NT N) \<notin> set A"
@@ -1007,14 +1030,233 @@ proof-
       by (metis ProducesInN.simps(2) Produces_def e f snd_conv)
   qed
 qed
-    
 
-definition DelNTFromRuleSet :: "'n \<Rightarrow> (('n, 't) Rule \<times> ('n, 't) Rule) set"
-  where "DelNTFromRuleSet N \<equiv> {((S, l @ r), (S, l @ NT(N) # r)) | S l r. True}\<^sup>*"
 
-definition DelNTFromRule :: "'n \<Rightarrow> ('n, 't) Rule set \<Rightarrow> ('n, 't) Rule set"
-  where "DelNTFromRule N R \<equiv> { NR | NR OR. (NR, OR) \<in> DelNTFromRuleSet N \<and> OR \<in> R }"
+lemma Bin_Part1_induct2:
+  fixes      A :: "('n, 't) Elem list"
+  fixes      G1 :: "('n, 't) CFG"
+  assumes p: "transformBinSingle G1 N G2"
+  assumes l: "(NT N) \<notin> set A" 
+  assumes m: "A -(snd G1)\<rightarrow>\<^sup>n x"
+  shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  from p and l and Bin_Part1_induct1 have 0: "\<And>A x. (NT N \<notin> set A \<and> A -snd G1\<rightarrow>\<^sup>n x \<Longrightarrow> A -snd G2\<rightarrow>\<^sup>* x)"
+    apply (induction n)
+    apply (metis ProducesInN.simps(1) Produces_def)
+    by (smt (verit) Bin_Part1_induct1)
+  from 0 and m and l show ?thesis
+    by blast
+qed
 
+lemma Bin_Part1:
+  assumes a: "transformBinSingle G1 N G2"
+  assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
+proof-
+  from b have 0: "\<exists> n S Rs1. [NT S] -Rs1\<rightarrow>\<^sup>n x \<and> (S, Rs1) = G1" (is "\<exists> n S Rs1. ?P n S Rs1")
+    by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
+  then obtain n S Rs1 where 1: "?P n S Rs1" by blast
+  from Bin_Part1_induct2 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+    by metis
+  from a have 3: "NT N \<notin> NonTerminals G1"
+    by(unfold transformBinSingle_def, auto)
+  from 1 and 3 have 4: "N \<noteq> S"
+    by(unfold NonTerminals_def, auto)
+  from 4 have 5: "NT N \<notin> set ([NT S])"
+    by simp
+  from 5 and 2 and 1 have 6: "[NT S] -(snd G2)\<rightarrow>\<^sup>* x"
+    by force
+  from a and 1 have 7: "\<exists> Rs2. G2 = (S, Rs2)" (is "\<exists> Rs2. ?P Rs2")
+    by(unfold transformBinSingle_def, blast)
+  then obtain Rs2 where 8: "?P Rs2" by blast
+  from b have 9: "IsTerminalWord x" 
+    by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+  from 8 and 6 and 9 show ?thesis
+    by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+qed
+
+lemma Bin_Part2_induct1:
+  assumes a: "transformBinSingle G1 N G2"
+  assumes b: "(NT N) \<notin> set A"
+  assumes c: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+  assumes d: "ProducesInN A (snd G2) (Suc n) x"
+  assumes p: "IsTerminalWord x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+                  (S, Rs1) = G1 
+                  \<and> R1 = (S1, L @ a # R)
+                  \<and> R2 = (S1, L @ [NT N])
+                  \<and> R3 = (N, a # R)  
+                  \<and> L \<noteq> [] \<and> R \<noteq> []
+                  \<and> (S, Rs2) = G2 
+                  \<and> R1 \<in> Rs1
+                  \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
+                  \<and> NT(N) \<notin> NonTerminals(G1)"
+          (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
+    by (simp add: transformBinSingle_def)
+  then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where 1: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
+  from 1 have e: "R1 = (S1, L @ a # R)" by auto
+  from 1 have f: "R2 = (S1, L @ [NT N])" by auto
+  from 1 have g: "R3 = (N, a # R)" by auto
+  from 1 have h: "L \<noteq> [] \<and> R \<noteq> []" by auto
+  from 1 have i: "G1 = (S, Rs1)" by auto
+  from 1 have j: "G2 = (S, Rs2)" by auto
+  from 1 have k: "R1 \<in> Rs1" by auto
+  from 1 have l: "Rs2 = {R2, R3} \<union> (Rs1 - {R1})" by auto
+  from 1 have m: "NT N \<notin> NonTerminals G1" by auto
+  from d and j have 0: "\<exists> t. A -Rs2\<rightarrow> t \<and> t -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> t. ?P t")
+    by simp
+  then obtain t where 2: "?P t" by blast
+  from l have 3: "\<And> T. T \<in> Rs2 \<Longrightarrow> (T = R2 \<or> T = R3) \<or> T \<in> Rs1" (* r2 is fine, r3 isn't *)
+    by blast
+  from f have 4: "(NT N) \<in> (set (snd R2))"
+    by auto
+  from 2 have 5: "\<exists> l r rhs N'. A = l @ [NT N'] @ r \<and> t = l @ rhs @ r \<and> (N', rhs) \<in> Rs2"
+    (is "\<exists> l r rhs N'. ?P l r rhs N'")
+    by (unfold ProductionStep_def Productions_def, auto) 
+  then obtain l r rhs N' where 6: "?P l r rhs N'" by blast
+  from 3 and 6 have 7: "(N', rhs) = R2 \<or> (N', rhs) = R3 \<or> (N', rhs) \<in> Rs1"
+    by auto
+  from 6 and g and 3 and b have 8: "(N', rhs) \<noteq> R3" 
+    by auto
+  from 8 and 7 have 9: "(N', rhs) = R2 \<or> (N', rhs) \<in> Rs1"
+    by auto
+  then show ?thesis
+proof 
+  assume x: "(N', rhs) = R2"
+  from f and x and 6 have 10: "t = l @ L @ [NT N] @ r" by auto
+  from 10 and 2 and p and OrderInvStep have 11: "\<exists>rhs1. (N, rhs1) \<in> Rs2 \<and> ProducesInN (l @ L @ rhs1 @ r) Rs2 (n-1) x"
+    (is "\<exists> rhs1. ?P rhs1")
+    by (metis append.assoc)
+  then obtain rhs1 where 12: "?P rhs1" by blast
+  from m and i have 13: "\<And> rhs. (N, rhs) \<notin> Rs1"
+    by(unfold NonTerminals_def NTInRule_def, blast)
+  from 3 and 12 and 13 and f and g have 14: "(N, rhs1) = R3"
+    using "1" by blast
+  from 14 and g have 15: "rhs1 = a # R" by auto
+  from m and k and e have 16: "(NT N) \<notin> set L \<and> (NT N) \<notin> set rhs1"
+    by (smt (verit, ccfv_threshold) "1" "15" CollectI NTInRule_def NonTerminals_def Un_iff set_append)
+  from b and 6 have 17: "(NT N) \<notin> set l \<and> (NT N) \<notin> set r"
+    by simp
+  from 16 and 17 and 15 have 18: "(NT N) \<notin> set (l @ L @ rhs1 @ r)"
+    by simp
+  from c and 18 and 12 have 19: "(l @ L @ rhs1 @ r) -Rs1\<rightarrow>\<^sup>* x"
+    by (metis "1" diff_le_self p snd_conv)
+  from e and k have 20: "l @ [NT S1] @ r -Rs1\<rightarrow> l @ L @ a # R @ r"
+    apply(unfold ProductionStep_def Productions_def)
+    by fastforce
+  from x and 6 and 15 and 20 and f have 21: "A -Rs1\<rightarrow> l @ L @ rhs1  @ r"
+    by force
+  from 21 and 19 show ?thesis
+    by (metis ProducesInN.simps(2) Produces_def i snd_conv)
+next
+  assume x: "(N', rhs) \<in> Rs1"
+  from x and 6 have 10: "A -Rs1\<rightarrow> t"
+    apply(unfold ProductionStep_def Productions_def)
+    by blast
+  from m and k and e have 11: "(NT N) \<notin> set L \<and> (NT N) \<notin> set R"
+    by (smt (verit, ccfv_threshold) "1" NTInRule_def NonTerminals_def Un_iff insert_iff list.simps(15) mem_Collect_eq set_append)
+  from b and 6 have 12: "(NT N) \<notin> set l \<and> (NT N) \<notin> set r"
+    by simp
+  from x and m have 13: "(NT N) \<notin> set rhs"
+    by (smt (verit) "1" CollectI NTInRule_def NonTerminals_def)
+  from 13 and 12 and 6 have 14: "(NT N) \<notin> set t"
+    by auto
+  from 14 and 2 and c have 15: "t -Rs1\<rightarrow>\<^sup>* x"
+    using i j p by auto
+  from 15 and 10 show ?thesis
+    by (metis ProducesInN.simps(2) Produces_def i snd_eqD)
+  qed
+qed
+
+lemma Bin_Part2_induct2:
+  assumes a: "transformBinSingle G1 N G2"
+  assumes b: "(NT N) \<notin> set A"
+  assumes c: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+  assumes d: "ProducesInN A (snd G2) n x"
+  assumes p: "IsTerminalWord x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  have "n > 0 \<or> n = 0" by auto
+  then show ?thesis
+  proof
+    assume x: "n > 0"
+    from x have 0: "\<exists> n'. n' = n-1" (is "\<exists> n'. ?P n'") by auto
+    then obtain n' where 1: "?P n'" by blast
+    from 1 and c have 2: "\<And>m A x. (m \<le> n' \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+      by (metis Suc_pred' less_Suc_eq_le x)
+    from 1 and d have 3: "ProducesInN A (snd G2) (Suc n') x"
+      by (simp add: x)
+    from 2 and 3 and p and a and b and Bin_Part2_induct1 show ?thesis
+      by (metis (no_types, lifting))      
+  next
+    assume y: "n = 0"
+    from d and y have 0: "x = A"
+      by simp
+    from 0 show ?thesis
+      by (meson ProducesInN.simps(1) Produces_def)
+  qed
+qed
+
+lemma Bin_Part2_induct3:
+  fixes      A :: "('n, 't) Elem list"
+  fixes      G1 :: "('n, 't) CFG"
+  assumes p: "transformBinSingle G1 N G2"
+  assumes l: "(NT N) \<notin> set A" 
+  assumes k: "IsTerminalWord x"
+  assumes m: "A -(snd G2)\<rightarrow>\<^sup>n x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  have 0: "\<And>A x. IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x"
+    apply (induction n rule: less_induct)
+    by (smt (verit, best) Bin_Part2_induct2 p)
+  from 0 and p and l and m and k show ?thesis 
+    by simp
+qed
+
+lemma Bin_Part2:
+  assumes a: "transformBinSingle G1 N G2"
+  assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
+proof-
+  from b have 0: "\<exists> n S Rs2. [NT S] -Rs2\<rightarrow>\<^sup>n x \<and> (S, Rs2) = G2" (is "\<exists> n S Rs2. ?P n S Rs2")
+    by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
+  then obtain n S Rs2 where 1: "?P n S Rs2" by blast
+  from Bin_Part2_induct3 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+    by metis
+  from a have 3: "NT N \<notin> NonTerminals G1"
+    by(unfold transformBinSingle_def, auto)
+  from a and 1 and 3 have 4: "N \<noteq> S"
+    by (unfold NonTerminals_def transformBinSingle_def, auto)
+  from 4 have 5: "NT N \<notin> set ([NT S])"
+    by simp
+  from b have 6: "IsTerminalWord x"
+    by (simp add: Lang_def Language_def PartialEvalLanguage_def)
+  from 5 and 2 and 1 and 6 have 7: "[NT S] -(snd G1)\<rightarrow>\<^sup>* x"
+    by force
+  from a and 1 have 8: "\<exists> Rs1. G1 = (S, Rs1)" (is "\<exists> Rs1. ?P Rs1")
+    by(unfold transformBinSingle_def, auto)
+  then obtain Rs1 where 9: "?P Rs1" by blast
+  from 9 and 7 and 6 show ?thesis
+    by(unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+qed
+
+theorem verifyTransformBin: 
+  assumes a: "transformBinSingle G1 N G2"
+  shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+proof-
+  from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
+    by (simp add: Bin_Part1)
+  from a have 1: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
+    by (simp add: Bin_Part2)
+  from 0 and 1 show ?thesis
+    by fastforce
+qed
+
+
+(* This definition doesn't terminate *)
+(*
 definition transformDelSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
   where "transformDelSingle G1 N G2 \<equiv> \<exists> S Rs1 Rs2. 
                                 N \<noteq> S 
@@ -1022,61 +1264,6 @@ definition transformDelSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('
                                 \<and> (S, Rs2) = G2
                                 \<and> (N, Nil) \<in> Rs1
                                 \<and> Rs2 = (DelNTFromRule N Rs1) - {(N, Nil)}"
-
-lemma Del_Part1:      
-  assumes a: "N \<noteq> S"
-  assumes b: "(S, Rs1) = G1"
-  assumes c: "(S, Rs2) = G2"
-  assumes d: "(N, []) \<in> Rs1"
-  assumes e: "Rs2 = DelNTFromRule N Rs1 - {(N, [])}"
-  assumes g: "x \<in> \<lbrakk>G1\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
-proof-
-  from g and b have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from g have 2: "IsTerminalWord x" by (simp add: Lang_def Language_def Produces_def)
-  from a and b and c and d and e and 2 and 1 show ?thesis
-    by(unfold IsTerminalWord_def, induction n, auto)
-qed
-
-lemma Del_Part2:      
-  assumes a: "N \<noteq> S"
-  assumes b: "(S, Rs1) = G1"
-  assumes c: "(S, Rs2) = G2"
-  assumes d: "(N, []) \<in> Rs1"
-  assumes e: "Rs2 = DelNTFromRule N Rs1 - {(N, [])}"
-  assumes g: "x \<in> \<lbrakk>G2\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
-proof-
-  from g and c have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from g have 2: "IsTerminalWord x" by (simp add: Lang_def Language_def Produces_def)
-  from a and b and c and d and e and 2 and 1 show ?thesis
-    by(unfold IsTerminalWord_def, induction n, auto)
-qed
-
-theorem verifyTransformDel: 
-  assumes a: "transformDelSingle G1 N G2"
-  shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-proof-
-  from a have 0:  "\<exists>S Rs1 Rs2.
-                   N \<noteq> S \<and>
-                   (S, Rs1) = G1 \<and>
-                   (S, Rs2) = G2 \<and>
-                   (N, []) \<in> Rs1 \<and>
-                   Rs2 = DelNTFromRule N Rs1 - {(N, [])}" 
-                  (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-  by(unfold transformDelSingle_def, auto)
-  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
-  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (meson Del_Part1)
-  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (meson Del_Part2)
-  from 2 and 3 show ?thesis
-    by blast
-qed
 
 definition NewUnitTransRuleSet :: "'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "NewUnitTransRuleSet A B R1 \<equiv> {R2 | R2 Rhs. (B, Rhs) \<in> R1 \<and> (A, Rhs) = R2}"
@@ -1087,60 +1274,7 @@ definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> '
                                    \<and> (S, Rs2) = G2
                                    \<and> (A, [NT(B)]) \<in> Rs1
                                    \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet A B Rs1)) - {(A, [NT(B)])}"
-
-lemma Unit_Part1 :
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "(A, [NT B]) \<in> Rs1"
-  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
-  assumes e: "x \<in> \<lbrakk>G1\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
-proof-
-  from e and a have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from e have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and a and b and c show ?thesis
-    by (induction n, auto, simp add: IsTerminalWord_def)
-qed
-
-lemma Unit_Part2 :
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "(A, [NT B]) \<in> Rs1"
-  assumes d: "Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
-  assumes e: "x \<in> \<lbrakk>G2\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
-proof-
-  from e and b have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from e have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and a and b and c show ?thesis
-    by (induction n, auto, simp add: IsTerminalWord_def)
-qed
-
-theorem verifyTransformUnit :
-  assumes a: "transformUnitSingle G1 A B G2"
-  shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-proof-
-  from a have 0:  "\<exists>S Rs1 Rs2.
-                  (S, Rs1) = G1 \<and>
-                  (S, Rs2) = G2 \<and> 
-                  (A, [NT B]) \<in> Rs1 \<and> 
-                  Rs2 = Rs1 \<union> NewUnitTransRuleSet A B Rs1 - {(A, [NT B])}"
-                  (is "\<exists>S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (unfold transformUnitSingle_def, auto)
-  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
-  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (meson Unit_Part1)
-  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (meson Unit_Part2)
-  from 2 and 3 show ?thesis
-    by blast
-qed
+*)
 
 definition isNTToNTProduction :: "('n, 't) Rule \<Rightarrow> bool"
   where "isNTToNTProduction R \<equiv> \<exists> N1 N2. R = (N1, [NT N2])"
@@ -1148,123 +1282,922 @@ definition isNTToNTProduction :: "('n, 't) Rule \<Rightarrow> bool"
 definition NTToNTProductionSet :: "('n, 't) RuleSet \<Rightarrow> ('n \<times> 'n) set"
   where "NTToNTProductionSet Rs \<equiv> {(N1, N2). (N1, [NT N2]) \<in> Rs}\<^sup>+"
 
-definition NewUnitTransRuleSet2 :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
-  where "NewUnitTransRuleSet2 A R1 \<equiv> {R2 | B R2 Rhs. (B, Rhs) \<in> R1 
+definition NewUnitTransRuleSet :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
+  where "NewUnitTransRuleSet A R1 \<equiv> {R2 | B R2 Rhs. (B, Rhs) \<in> R1 
                                           \<and> (A, Rhs) = R2
                                           \<and> (A, B) \<in> NTToNTProductionSet R1
                                           \<and> \<not>isNTToNTProduction R2}"
 
-definition NTToNTSetForA :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
-  where "NTToNTSetForA A R1 \<equiv> {R2 | R2 B. (A, [NT B]) = R2}"
+definition NTToNTSetForA :: "'n \<Rightarrow> ('n, 't) RuleSet"
+  where "NTToNTSetForA A \<equiv> {R2 | R2 B. (A, [NT B]) = R2}"
 
-definition transformUnitSingle2 :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformUnitSingle2 G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
+definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformUnitSingle G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
                                    (S, Rs1) = G1
                                    \<and> (S, Rs2) = G2
-                                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet2 A Rs1)) - (NTToNTSetForA A Rs1)"
+                                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet A Rs1)) - (NTToNTSetForA A)"
 
-lemma Unit2_Part1:
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "Rs2 = Rs1 \<union>
-       NewUnitTransRuleSet2 A Rs1 -
-       NTToNTSetForA A Rs1"
-  assumes d: "x \<in> \<lbrakk>G1\<rbrakk>"
+lemma Unit_Part1:
+  fixes      Rs :: "('n, 't) RuleSet"
+  assumes a: "(N1, N2) \<in> NTToNTProductionSet Rs"
+  shows      "[NT N1] -Rs\<rightarrow>\<^sup>* [NT N2]"
+proof-
+  have 0: "\<And> a b. (a, [NT b]) \<in> Rs \<Longrightarrow> [NT a] -Rs\<rightarrow> [NT b]"
+    by(unfold ProductionStep_def Productions_def, fastforce) 
+  from 0 have 1: "\<And> a b. (a, [NT b]) \<in> Rs \<Longrightarrow> [NT a] -Rs\<rightarrow>\<^sup>* [NT b]"
+    by (meson ProducesInN.simps(1) ProducesInN.simps(2) Produces_def)
+  from 1 have 2: "\<And> a b. (a, b) \<in> {(N1, N2). (N1, [NT N2]) \<in> Rs} \<Longrightarrow> [NT a] -Rs\<rightarrow>\<^sup>* [NT b]"
+    by blast
+  from 2 have 3: "\<And> a b. (a, b) \<in> {(N1, N2). (N1, [NT N2]) \<in> Rs} \<Longrightarrow> (\<lambda> a b. (ProductionRel Rs) [NT a] [NT b]) a b"
+    by (auto, unfold ProductionRel_def)
+  from 3 and transitiveSetToRel have 4: "\<And> a b. (a, b) \<in> {(N1, N2). (N1, [NT N2]) \<in> Rs}\<^sup>+ \<Longrightarrow> (\<lambda> a b. (ProductionRel Rs) [NT a] [NT b])\<^sup>+\<^sup>+ a b"
+    by (metis (no_types, lifting))
+  from 4 have 5: "\<And> a b. (a, b) \<in> {(N1, N2). (N1, [NT N2]) \<in> Rs}\<^sup>+ \<Longrightarrow> (ProductionRel Rs)\<^sup>+\<^sup>+ [NT a] [NT b]"
+    by (smt (verit, del_insts) ProductionRel_def tranclp.r_into_trancl tranclp_trans_induct transitiveProductions)
+  from 5 have 6: "\<And> a b. (a, b) \<in> {(N1, N2). (N1, [NT N2]) \<in> Rs}\<^sup>+ \<Longrightarrow> (ProductionRel Rs) [NT a] [NT b]"
+    using transitiveClosureSame by blast
+  from 6  and a have 7: "\<And> a b. (a, b) \<in> NTToNTProductionSet Rs \<Longrightarrow> [NT a] -Rs\<rightarrow>\<^sup>* [NT b]"
+    by (simp add: ProductionRel_def NTToNTProductionSet_def)
+  from a and 7 show ?thesis
+    by auto
+qed
+
+lemma Unit_Part2:
+  fixes      Rs :: "('n, 't) RuleSet"
+  assumes a: "(A, Rhs) \<in> NewUnitTransRuleSet A Rs"
+  shows      "[NT A] -Rs\<rightarrow>\<^sup>* Rhs"
+proof-
+  from a have 0:  "\<exists>B. (B, Rhs) \<in> Rs \<and> (A, B) \<in> NTToNTProductionSet Rs" (is "\<exists>B. ?P B")
+    by (unfold NewUnitTransRuleSet_def, auto)
+  then obtain B where 1: "?P B" by blast
+  from 1 have 2: "[NT B] -Rs\<rightarrow> Rhs"
+    by (unfold ProductionStep_def Productions_def, fastforce)
+  from 1 have 3: "[NT A] -Rs\<rightarrow>\<^sup>* [NT B]"
+    by (simp add: Unit_Part1)
+  from 2 and 3 show ?thesis
+    by (metis ProducesInN.elims(3) ProducesInN.simps(2) Produces_def nat.simps(3) transitiveProductions)
+qed
+
+definition UnitInductionStep :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) Elem list \<Rightarrow> 'n \<Rightarrow> nat \<Rightarrow> bool"
+  where "UnitInductionStep Rs x A n \<equiv> \<exists>c m. m < n \<and> ((A, c) \<in> NewUnitTransRuleSet A Rs \<or> (A, c) \<in> Rs)
+              \<and> c -Rs\<rightarrow>\<^sup>m x \<and> ProducesInN [NT A] Rs (n - m) c \<and> \<not> isNTToNTProduction (A, c)"
+
+lemma Unit_Part3:
+  fixes      Rs :: "('n, 't) RuleSet"
+  assumes a: "IsTerminalWord x"
+  assumes b: "\<And> A. ([NT A] -Rs\<rightarrow>\<^sup>n x \<Longrightarrow> UnitInductionStep Rs x A n)"
+  assumes c: "[NT A] -Rs\<rightarrow> r" 
+  assumes d: "r -Rs\<rightarrow>\<^sup>n x" 
+  shows      "UnitInductionStep Rs x A (n+1)"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "isNTToNTProduction (A, r)"
+    from x have 0: "\<exists>N'. r = [NT N']" (is "\<exists>N'. ?P N'")
+      by (simp add: isNTToNTProduction_def)
+    then obtain N' where 1: "?P N'" by blast
+    from 1 and c have 2: "(A, N') \<in> NTToNTProductionSet Rs"
+      apply(unfold ProductionStep_def Productions_def NTToNTProductionSet_def)
+      by (smt (verit, ccfv_SIG) Elem.inject(1) Pair_inject append_eq_Cons_conv append_is_Nil_conv case_prodI list.discI list.inject mem_Collect_eq r_into_trancl')
+    from 2 have 3: "\<And> X. (N', X) \<in> NTToNTProductionSet Rs \<Longrightarrow> (A, X) \<in> NTToNTProductionSet Rs"
+      by(unfold NTToNTProductionSet_def, auto)
+    from d and b and 1 have 4: "\<exists>c' m'. m' < n \<and> ((N', c') \<in> NewUnitTransRuleSet N' Rs \<or> (N', c') \<in> Rs) \<and> ProducesInN c' Rs m' x 
+                         \<and> ProducesInN [NT N'] Rs (n - m') c' \<and> \<not> isNTToNTProduction (N', c')"
+      (is "\<exists>c' m'. ?P c' m'")
+      apply (unfold UnitInductionStep_def)
+      by blast
+    then obtain c' m' where 5: "?P c' m'" by blast
+    from 5 have 6: "((N', c') \<in> NewUnitTransRuleSet N' Rs \<or> (N', c') \<in> Rs)"
+      by auto
+    then show ?thesis
+    proof 
+      assume x: "(N', c') \<in> NewUnitTransRuleSet N' Rs"
+      from 5 and x have 7: "(A, c') \<in> NewUnitTransRuleSet A Rs"
+        apply(unfold NewUnitTransRuleSet_def NTToNTProductionSet_def, simp)
+        by (metis "3" NTToNTProductionSet_def isNTToNTProduction_def prod.inject)
+      from 1 and 5 and c have 8: "ProducesInN [NT A] Rs (n+1 - m') c'"
+        by (metis ProducesInN.simps(2) Suc_diff_le Suc_eq_plus1 order_le_less)
+      from 7 have 9: " \<not> isNTToNTProduction (A, c')"
+        by (metis "5" isNTToNTProduction_def snd_conv)
+      from 7 and 8 and 9 and 5 show ?thesis
+        apply (unfold UnitInductionStep_def)
+        using trans_less_add1 by blast
+    next
+      assume y: "(N', c') \<in> Rs"
+      from y and 5 have 7: "(A, c') \<in> NewUnitTransRuleSet A Rs"
+        apply(unfold NewUnitTransRuleSet_def NTToNTProductionSet_def, simp)
+        by (metis "2" NTToNTProductionSet_def isNTToNTProduction_def prod.sel(2))
+      from 1 and 5 and c have 8: "ProducesInN [NT A] Rs (n+1 - m') c'"
+        by (metis ProducesInN.simps(2) Suc_diff_le Suc_eq_plus1 order_le_less)
+      from 7 have 9: " \<not> isNTToNTProduction (A, c')"
+        by (metis "5" isNTToNTProduction_def snd_conv)
+      from 7 and 8 and 9 and 5 show ?thesis
+        apply (unfold UnitInductionStep_def)
+        using trans_less_add1 by blast
+    qed
+  next
+    assume y: "\<not>isNTToNTProduction (A, r)"
+    have 0: "ProducesInN [NT A] Rs 1 r"
+      using c by force
+    from c have 1: "(A, r) \<in> Rs"
+      apply(unfold ProductionStep_def Productions_def)
+      by (smt (verit) CollectD Cons_eq_appendI Elem.inject(1) add_diff_cancel_right' append_Nil2 
+         append_self_conv2 diff_add_0 length_0_conv length_Cons length_append list.sel(1) list.sel(3) prod.sel(1) prod.sel(2))
+    from y and 0 and 1 show ?thesis 
+      apply (unfold UnitInductionStep_def)
+      by (metis add_diff_cancel_left' d less_add_one)
+  qed
+qed
+
+lemma Unit_Part4:
+  fixes      Rs :: "('n, 't) RuleSet"
+  assumes a: "[NT A] -Rs\<rightarrow>\<^sup>n x"
+  assumes b: "IsTerminalWord x"
+  shows      "UnitInductionStep Rs x A n"
+proof-
+  from a and b have 0: "n > 0"
+    by (metis IsTerminalWord_def ProducesInN.simps(1) bot_nat_0.not_eq_extremum list.set_intros(1))
+  from 0 have 1: "\<exists>l. l = n - 1" (is "\<exists>l. ?P l")
+    by auto
+  then obtain l where 2: "?P l" by blast
+  from b have 3: 
+      "\<And> A. ([NT A] -Rs\<rightarrow>\<^sup>n x \<Longrightarrow> UnitInductionStep Rs x A n)"
+    apply(induction n)
+    using IsTerminalWord_def apply force
+    by (metis (no_types, lifting) ProducesInN.simps(2) Suc_eq_plus1 Unit_Part3)
+  from 3 and a show ?thesis by auto
+qed
+
+definition isTransformedFromRule :: "('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
+  where "isTransformedFromRule E1 E2 R \<equiv> \<exists> l r N rhs. (E1 = l @ (NT N) # r \<and> E2 = l @ rhs @ r \<and> R = (N, rhs))"
+
+definition isTransformedFromNT :: "('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> 'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> bool"
+  where "isTransformedFromNT E1 E2 N Rs \<equiv> \<exists> l r rhs. (E1 = l @ (NT N) # r \<and> E2 = l @ rhs @ r \<and> (N, rhs) \<in> Rs)"
+
+lemma Unit_Part5:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+  assumes c: "ProducesInN A (snd G1) (Suc n) x"
+  assumes d: "IsTerminalWord x"
+  shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformUnitSingle_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have g: "Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)" by auto
+  from c and e have 1: "\<exists> t. ProducesInN t Rs1 n x \<and> A -Rs1\<rightarrow> t"
+    (is "\<exists> t. ?P t")
+    by auto
+  then obtain t where 2: "?P t" by blast
+  have 3: "isTransformedFromNT A t N Rs1 \<or> \<not>isTransformedFromNT A t N Rs1" by auto
+  
+  then show ?thesis
+
+  proof
+    assume x: "isTransformedFromNT A t N Rs1"
+    from x have 4: "\<exists> l r rhs. (A = l @ (NT N) # r \<and> t = l @ rhs @ r \<and> (N, rhs) \<in> Rs1)" (is "\<exists> l r rhs. ?P l r rhs")
+      by (simp add: isTransformedFromNT_def)
+    then obtain l r rhs where 5: "?P l r rhs" by blast
+    from c and 5 have 6: "\<exists> l1 nr n1. n1 \<le> n+1 \<and> x = l1 @ nr \<and> ProducesInN l Rs1 n1 l1 \<and> ProducesInN ([NT N] @ r) Rs1 (n+1-n1) nr"
+      (is "\<exists> l1 nr n1. ?P l1 nr n1")
+      by (simp, metis c e productionParts6 sndI)
+    then obtain l1 nr n1 where 7: "?P l1 nr n1" by blast
+    from 7 have 8: "\<exists> x1 r1 n2. n2 \<le> (n+1-n1) \<and> nr = x1 @ r1 \<and> ProducesInN r Rs1 (n+1-n1-n2) r1 \<and> ProducesInN ([NT N]) Rs1 (n2) x1"
+      (is "\<exists> x1 r1 n2. ?P x1 r1 n2")
+      by (metis productionParts6)
+    then obtain x1 r1 n2 where 9: "?P x1 r1 n2" by blast
+    from 9 and b a and d have 10: "UnitInductionStep Rs1 x1 N n2"
+      by (simp add: "7" IsTerminalWord_def Unit_Part4)
+    from 10 have 11: "\<exists>c m. m < n2 \<and> ((N, c) \<in> NewUnitTransRuleSet N Rs1 \<or> (N, c) \<in> Rs1) \<and> c -Rs1\<rightarrow>\<^sup>m x1 \<and> [NT N] -Rs1\<rightarrow>\<^sup>(n2 - m) c \<and> \<not> isNTToNTProduction (N, c)"
+      (is "\<exists> c m. ?P c m")
+      by (simp add: UnitInductionStep_def)
+    then obtain cx mx where 12: "?P cx mx" by blast
+    from 9 and 7 have 13: "x = l1 @ x1 @ r1" by auto
+    from d and 13 have 14: "IsTerminalWord l1"
+      by (simp add: IsTerminalWord_def)
+    from d and 13 have 15: "IsTerminalWord x1"
+      by (simp add: IsTerminalWord_def)
+    from d and 13 have 16: "IsTerminalWord r1"
+      by (simp add: IsTerminalWord_def)
+    from 9 and 7 have 17: "mx \<le> n"
+      by (metis "12" Suc_eq_plus1 diff_le_self less_Suc_eq_le order_less_le_trans)
+    from 15 and 12 have 18: "n2 \<ge> 1"
+      by simp
+    from 18 and 9 and 7 have 19: "n1 \<le> n"
+      by linarith
+    from 18 have 20: "n+1-n1-n2 \<le> n" 
+      by linarith
+    from 19 and b  and 7 have 21: "l -Rs2\<rightarrow>\<^sup>* l1"
+      using "14" e f by auto
+    from 20 and b and 9 have 22: "r -Rs2\<rightarrow>\<^sup>* r1"
+      using "16" e f by auto
+    from 12 have 23: "mx \<le> n"
+      using "17" by linarith
+    from b and 12 and 23 have 24: "cx -Rs2\<rightarrow>\<^sup>* x1"
+      using "15" e f by auto
+    from 12 have 25: "(N, cx) \<notin> (NTToNTSetForA N)"
+      by (smt (verit, del_insts) CollectD NTToNTSetForA_def isNTToNTProduction_def)
+    from 25 and 12 have 26: "(N, cx) \<in> Rs2"
+      using r by fastforce
+    from 26 have 27: "[NT N] -Rs2\<rightarrow> cx"
+      using ProductionStep_def Productions_def by fastforce
+    from 27 and 24 have 28: "[NT N] -Rs2\<rightarrow>\<^sup>* x1"
+      by (meson ProducesInN.simps(2) Produces_def)
+    from 28 and 21 have 29: "l @ [NT N] -Rs2\<rightarrow>\<^sup>* l1 @ x1"
+      by (simp add: productionParts4)
+    from 29 and 22 have 30: "l @ [NT N] @ r -Rs2\<rightarrow>\<^sup>* l1 @ x1 @ r1"
+      by (meson "21" "28" productionParts4)
+    from 30 show ?thesis
+      by (simp add: "13" "5" f)
+  next
+    assume y: "\<not> isTransformedFromNT A t N Rs1"
+    from 2 have 4: "\<exists> l r rhs N'. (A = l @ (NT N') # r \<and> t = l @ rhs @ r \<and> (N', rhs) \<in> Rs1 \<and> ProducesInN t Rs1 n x)" (is "\<exists> l r rhs N'. ?P l r rhs N'")
+      by(unfold ProductionStep_def Productions_def, auto)
+    then obtain l r rhs N' where 5: "?P l r rhs N'" by blast
+    from 5 and y have 6: "N' \<noteq> N" 
+      by(simp add: isTransformedFromNT_def, auto)
+    from 6 have 7: "(N', rhs) \<notin> (NTToNTSetForA N)"
+      by (simp add: NTToNTSetForA_def)
+    from 7 and 5 and g have 8: "(N', rhs) \<in> Rs2"
+      by auto
+    from 8 have 9: "[NT N'] -Rs2\<rightarrow> rhs" 
+      by (simp add: ProductionStep_def Productions_def, force)
+    from 4 have 10: "ProducesInN t Rs1 n x" by auto
+    from 10 and b have 11: "t -Rs2\<rightarrow>\<^sup>* x"
+      using d e f by auto
+    from 9 and 5 have 12: "A -Rs2\<rightarrow> t"
+      using productionAppend1 by fastforce
+    from 12 and 11 and f show ?thesis
+      by (auto, meson ProducesInN.simps(2) Produces_def)
+  qed
+qed
+
+lemma Unit_Part6:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+  assumes c: "ProducesInN A (snd G1) n x"
+  assumes d: "IsTerminalWord x"
+  shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    from x and c have 0: "A = x"
+      by simp
+    from 0 show ?thesis
+      by (meson ProducesInN.simps(1) Produces_def)
+  next
+    assume y: "n \<noteq> 0"
+    from y have 0: "\<exists> l. l = n-1" (is "\<exists> l. ?P l")
+      by blast
+    then obtain l where 1: "?P l" by blast
+    from 1 and b have 2: "\<And>m A x. (m \<le> l \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+      by (metis Suc_pred' bot_nat_0.not_eq_extremum le_imp_less_Suc y)
+    from c and 1 have 3: "ProducesInN A (snd G1) (l+1) x"
+      using y by fastforce
+    from 2 and 3 and d and a show ?thesis
+      by (metis One_nat_def Unit_Part5 add.right_neutral add_Suc_right)
+  qed
+qed
+
+lemma Unit_Part7:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "ProducesInN A (snd G1) n x"
+  assumes c: "IsTerminalWord x"
+  shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  have 0: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+    apply(induction n rule: less_induct)
+    by (meson Unit_Part6 a)
+  from 0 and c and b show ?thesis
+    by (metis Unit_Part6 a)
+qed
+
+lemma Unit_Part8:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
-  from a and d have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from d have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and b and c show ?thesis
-    by(simp add: NewUnitTransRuleSet2_def NTToNTProductionSet_def isNTToNTProduction_def NTToNTSetForA_def IsTerminalWord_def, induction n, auto)
+  from b have 0: "\<exists>n. ProducesInN [NT (fst G1)] (snd G1) n x"
+    by (unfold Lang_def Language_def PartialEvalLanguage_def Produces_def, auto)
+  from b have 1: "IsTerminalWord x"
+    by (unfold Lang_def Language_def PartialEvalLanguage_def Produces_def, auto)
+  from a and 0 and 1 have 2: "[NT (fst G1)] -(snd G2)\<rightarrow>\<^sup>* x"
+    by (meson Unit_Part7)
+  from 2 and 1 and a show ?thesis
+    by(simp add: transformUnitSingle_def Lang_def Language_def PartialEvalLanguage_def, force)
 qed
 
+lemma Unit_Part9:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "\<And>A x. (IsTerminalWord x \<and> ProducesInN A (snd G2) n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+  assumes c: "ProducesInN A (snd G2) (Suc n) x"
+  assumes d: "IsTerminalWord x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformUnitSingle_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have g: "Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)" by auto
+  from c and f have 1: "\<exists> t. ProducesInN t Rs2 n x \<and> A -Rs2\<rightarrow> t"
+    (is "\<exists> t. ?P t")
+    by auto
+  then obtain t where 2: "?P t" by blast
+  from 2 and b and d and e and f have 3: "t -(snd G1)\<rightarrow>\<^sup>* x" 
+    by force
+  from 1 have 4: "\<exists> l r rhs N'. (N', rhs) \<in> Rs2 \<and> A = l @ [NT N'] @ r \<and> t = l @ rhs @ r" 
+      (is "\<exists> l r rhs N'. ?P l r rhs N'")
+    by (smt (verit, del_insts) "2" Pair_inject ProductionStep_def Productions_def append_Cons append_Nil mem_Collect_eq)
+  then obtain l r rhs N' where 5: "?P l r rhs N'" by blast
+  from 5 and g have 6: "(N', rhs) \<in> Rs1 \<or> (N', rhs) \<in> NewUnitTransRuleSet N Rs1"
+    by fastforce
+  then show ?thesis
+  proof
+    assume x: "(N', rhs) \<in> Rs1"
+    from x and 5 have 7: "A -Rs1\<rightarrow> t"
+      using CollectI ProductionStep_def Productions_def by fastforce
+    from 3 and 7 and e show ?thesis
+      by (metis ProducesInN.simps(2) Produces_def snd_conv)
+  next
+    assume y: "(N', rhs) \<in> NewUnitTransRuleSet N Rs1"
+    from y have 7: "N' = N"
+      by(simp add: NewUnitTransRuleSet_def, auto)
+    from y and 7 have 8: "[NT N] -Rs1\<rightarrow>\<^sup>* rhs"
+      by (simp add: Unit_Part2)
+    from 8 have 9: "l @ [NT N] @ r -Rs1\<rightarrow>\<^sup>* l @ rhs @ r"
+      using productionAppend3 by blast
+    from 9 and 5 have 10: "A -Rs1\<rightarrow>\<^sup>* t"
+      using "7" by blast
+    from 10 and 3 show ?thesis
+      using e transitiveProductions by auto
+  qed
+qed
 
-lemma Unit2_Part2:
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "Rs2 = Rs1 \<union>
-       NewUnitTransRuleSet2 A Rs1 -
-       NTToNTSetForA A Rs1"
-  assumes d: "x \<in> \<lbrakk>G2\<rbrakk>"
+lemma Unit_Part10:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "ProducesInN A (snd G2) n x"
+  assumes c: "IsTerminalWord x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  have 0: "\<And>A x. (IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+    apply(induction n)
+    apply (metis ProducesInN.simps(1) Produces_def)
+    by (meson Unit_Part9 a)
+  from 0 show ?thesis
+    using b c by blast
+qed
+
+lemma Unit_Part11:
+  assumes a: "transformUnitSingle G1 N G2"
+  assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
-  from b and d have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from d have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and a and c show ?thesis
-    by(induction n, simp add: IsTerminalWord_def, auto)
+  from b have 0: "\<exists>n. ProducesInN [NT (fst G2)] (snd G2) n x"
+    by (unfold Lang_def Language_def PartialEvalLanguage_def Produces_def, auto)
+  from b have 1: "IsTerminalWord x"
+    by (unfold Lang_def Language_def PartialEvalLanguage_def Produces_def, auto)
+  from a and 0 and 1 have 2: "[NT (fst G2)] -(snd G1)\<rightarrow>\<^sup>* x"
+    by (meson Unit_Part10)
+  from 2 and 1 and a show ?thesis
+    by(simp add: transformUnitSingle_def Lang_def Language_def PartialEvalLanguage_def, force)
 qed
 
-theorem verifyTransformUnit2 :
-  assumes a: "transformUnitSingle2 G1 A G2"
+lemma verifyUnitTransform:
+  assumes a: "transformUnitSingle G1 N G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
-  from a have 0: "\<exists>S Rs1 Rs2.
-       (S, Rs1) = G1 \<and>
-       (S, Rs2) = G2 \<and>
-       Rs2 =
-       Rs1 \<union>
-       NewUnitTransRuleSet2 A Rs1 -
-       NTToNTSetForA A Rs1" (is "\<exists>S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (unfold transformUnitSingle2_def)
-  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
-  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (meson Unit2_Part1)
-  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (meson Unit2_Part2)
-  from 2 and 3 show ?thesis
-    by blast
+  from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
+    by (simp add: Unit_Part8)
+  from a have 1: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
+    by (simp add: Unit_Part11)
+  from 0 and 1 show ?thesis
+    by fastforce
 qed
+
+definition DelSingleNTFromElemListSet :: "'n \<Rightarrow> (('n, 't) Elem list \<times> ('n, 't) Elem list) set"
+  where "DelSingleNTFromElemListSet N \<equiv> {((l @ r), (l @ NT(N) # r)) | l r. True}"
+
+definition DelNTFromElemListSet :: "'n \<Rightarrow> (('n, 't) Elem list \<times> ('n, 't) Elem list) set"
+  where "DelNTFromElemListSet N \<equiv> {((l @ r), (l @ NT(N) # r)) | l r. True}\<^sup>*"
+
+definition DelNTFromRuleSet :: "'n \<Rightarrow> (('n, 't) Rule \<times> ('n, 't) Rule) set"
+  where "DelNTFromRuleSet N \<equiv> {((S, l @ r), (S, l @ NT(N) # r)) | S l r. True}\<^sup>*"
+
+definition DelNTFromRule :: "'n \<Rightarrow> ('n, 't) Rule set \<Rightarrow> ('n, 't) Rule set"
+  where "DelNTFromRule N R \<equiv> { NR | NR OR. (NR, OR) \<in> DelNTFromRuleSet N \<and> OR \<in> R }"
 
 definition DelAllNullableNTsFromRules :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "DelAllNullableNTsFromRules X = {R | R N. R \<in> DelNTFromRule N X \<and> Nil \<in> \<lbrakk>N\<rbrakk>\<^sub>X}"
 
+definition DelAllNullableNTsFromElemList :: "('n, 't) Elem list \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) Elem list set"
+  where "DelAllNullableNTsFromElemList E1 X = {E | E N. (E, E1) \<in> DelNTFromElemListSet N \<and> Nil \<in> \<lbrakk>N\<rbrakk>\<^sub>X}"
+
 definition RemoveAllEpsilonProds :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "RemoveAllEpsilonProds S X = {R | R N Rhs. R \<in> X \<and> (N, Rhs) = R \<and> (N = S \<or> Rhs \<noteq> Nil)}"
 
-definition transformDel2 :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformDel2 G1 G2 \<equiv> \<exists> S Rs1 Rs2.
-                                (S, Rs1) = G1
-                                \<and> (S, Rs2) = G2
-                                \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+definition transformDel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformDel G1 G2 \<equiv> \<exists> S Rs1 Rs2.
+                               (S, Rs1) = G1
+                               \<and> (S, Rs2) = G2
+                               \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
 
-lemma Del2_Part1:   
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
-  assumes d: "x \<in> \<lbrakk>G1\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
+definition delStep :: "'n \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "delStep N E1 E2 \<equiv> (E2, E1) \<in> DelSingleNTFromElemListSet N"
+
+fun delInN :: "'n \<Rightarrow> nat \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "delInN N 0 E1 E2 = (E1 = E2)" |
+        "delInN N (Suc a) E1 E2 = (\<exists>t. (delStep N E1 t) \<and> (delInN N a t E2))"
+
+definition delNT :: "'n \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "delNT N E1 E2 \<equiv> \<exists> n. delInN N n E1 E2"
+
+lemma Del_Part1:
+  assumes a: "delInN N n1 A B"
+  assumes b: "delInN N n2 B C"
+  shows      "delInN N (n1 + n2) A C"
 proof-
-  from a and d have 0: "\<exists> n. [NT S] -Rs1\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from d have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and b and c show ?thesis
-    by(induction n, simp add: RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNTFromRule_def DelNTFromRuleSet_def IsTerminalWord_def, auto)
+  have 0: "\<And> A B C m. delInN N n1 A B \<and> delInN N m B C \<Longrightarrow> delInN N (n1+m) A C"
+    apply(induction n1)
+    apply simp
+    by auto
+  from a and b and 0 show ?thesis
+    by force
 qed
 
-lemma Del2_Part2:   
-  assumes a: "(S, Rs1) = G1"
-  assumes b: "(S, Rs2) = G2"
-  assumes c: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
-  assumes d: "x \<in> \<lbrakk>G2\<rbrakk>"
-  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
+lemma Del_Part2:
+  assumes a: "delNT N A B"
+  assumes b: "delNT N B C"
+  shows      "delNT N A C"
 proof-
-  from b and d have 0: "\<exists> n. [NT S] -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
-    by (simp add: Lang_def Language_def Produces_def, auto)
-  then obtain n where 1: "?P n" by blast
-  from d have 2: "IsTerminalWord x"
-    by (simp add: Lang_def Language_def Produces_def)
-  from 1 and 2 and b and c show ?thesis
-    by(induction n, simp add: RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNTFromRule_def DelNTFromRuleSet_def IsTerminalWord_def, auto)
+  from a and b and Del_Part1 show ?thesis
+    apply(unfold delNT_def)
+    by fastforce
 qed
+
+lemma Del_Part3:
+  assumes a: "(delNT N)\<^sup>+\<^sup>+ a b"
+  shows      "(delNT N) a b"
+proof-
+  from Del_Part2 and a show ?thesis
+    by (smt (verit, ccfv_SIG) tranclp_induct)
+qed
+
+lemma Del_Part4:
+  shows      "(delNT N)\<^sup>+\<^sup>+ = delNT N"
+proof-
+  from Del_Part3 show ?thesis
+    by fastforce
+qed
+
+lemma Del_Part5:
+  assumes a: "(delStep N) a b"
+  shows      "(delNT N) a b"
+proof-
+  from a show ?thesis
+    by (meson delInN.simps(1) delInN.simps(2) delNT_def)
+qed
+
+lemma Del_Part6:
+  shows      "(delNT N)\<^sup>*\<^sup>* = delNT N"
+proof-
+  have 0: "\<And> a. (delNT N) a a"
+    by (meson delInN.simps(1) delNT_def)
+  from Del_Part4 and 0 show ?thesis
+    by (metis antisym_conv predicate2I r_into_rtranclp rtranclp_into_tranclp1)
+qed
+
+lemma Del_Part7:
+  assumes a: "(delStep N)\<^sup>*\<^sup>* a b"
+  shows      "(delNT N) a b"
+proof-
+  from a have 0: "(delNT N)\<^sup>*\<^sup>* a b"
+    by (metis Del_Part5 mono_rtranclp)
+  from 0 and Del_Part6 show ?thesis
+    by metis
+qed
+
+lemma Del_Part8:
+  assumes a: "(delNT N) a b" 
+  shows      "(delStep N)\<^sup>*\<^sup>* a b"
+proof-
+  from a have 0: "\<exists> n. delInN N n a b" (is "\<exists> n. ?P n")
+    by(unfold delNT_def, auto)
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And>a b. delInN N n a b \<Longrightarrow> (delStep N)\<^sup>*\<^sup>* a b"
+    apply(induction n)
+    apply simp
+    by (meson delInN.simps(2) rtranclp.rtrancl_into_rtrancl rtranclp.rtrancl_refl rtranclp_trans)
+  from 1 and 2 show ?thesis
+    by blast
+qed
+
+lemma Del_Part9:
+  shows      "(delNT N) = (delStep N)\<^sup>*\<^sup>*"
+proof-
+  show ?thesis
+    using Del_Part7 Del_Part8 by fastforce
+qed
+
+lemma Del_Part10:
+  fixes      S :: "('a \<times> 'a) set"
+  fixes      R :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
+  assumes a: "\<And> a b. R a b \<longleftrightarrow> (b, a) \<in> S"
+  shows      "R\<^sup>*\<^sup>* a b \<longleftrightarrow> (b, a) \<in> S\<^sup>*"
+proof-
+  from a show ?thesis
+    by (smt (verit) Transitive_Closure.rtranclp_rtrancl_eq converse_rtranclp_induct 
+        rtrancl.rtrancl_into_rtrancl rtranclp.rtrancl_into_rtrancl rtranclp.rtrancl_refl)
+qed
+
+lemma Del_Part11:
+  shows      "(delNT N) a b \<longleftrightarrow> (b, a) \<in> DelNTFromElemListSet N"
+proof-
+  have 0: "\<And> a b. delStep N a b \<longleftrightarrow> (b, a) \<in> DelSingleNTFromElemListSet N"
+    apply(unfold delStep_def DelSingleNTFromElemListSet_def)
+    by force
+  have 1: "DelNTFromElemListSet N = (DelSingleNTFromElemListSet N)\<^sup>*"
+    by(unfold DelNTFromElemListSet_def DelSingleNTFromElemListSet_def, auto)
+  from Del_Part9 and Del_Part10 and 0 and 1 show ?thesis
+    by metis
+qed
+
+lemma Del_Part12:
+  assumes a: "(delStep N) (l @ r) X"
+  shows      "(\<exists> l'. (delStep N) l l' \<and> X = l' @ r) \<or> (\<exists> r'. (delStep N) r r' \<and> X = l @ r')"   
+proof-
+  from a have 0: "\<exists>a b. l @ r = (a @ [NT N] @ b) \<and> X = (a @ b)" (is "\<exists> a b. ?P a b")
+    by(unfold delStep_def DelSingleNTFromElemListSet_def, auto) 
+  then obtain a b where 1: "?P a b" by blast
+  from 1 have 3: "(size l \<ge> size (a @ [NT N])) \<Longrightarrow> \<exists> c. l = (a @ [NT N]) @ c"
+    by (metis append.assoc listPrefixSize)
+  have 4: "size l > size a \<Longrightarrow> size l \<ge> size (a @ [NT N])"
+    by simp
+  from 1 have 5: "size l + size r = size a + size ([NT N] @ b)"
+    by (metis length_append)
+  from 5 have 6: "size l \<le> size a \<Longrightarrow> size r \<ge> size ([NT N] @ b)"
+    by linarith
+  from 1 have 7: "size r \<ge> size ([NT N] @ b) \<Longrightarrow> \<exists> c. r = c @ ([NT N] @ b)"
+    by (metis listSuffixSize)
+  have 2: "((size l) > (size a)) \<or> ((size l) \<le> size a)"
+    using linorder_not_less by blast
+  then show ?thesis
+  proof
+    assume x: "(size l) > (size a)"
+    from x and 4 have 8: "size l \<ge> size (a @ [NT N])"
+      by auto
+    from 8 and 3 have 9:"\<exists> c. l = (a @ [NT N]) @ c" (is "\<exists> c. ?P c")
+      by auto
+    then obtain c where 10: "?P c" by blast
+    from 10 and 1 have 11: "(delStep N) l (a @ c)"
+      apply(unfold delStep_def, auto) 
+      using delStep_def DelSingleNTFromElemListSet_def by fastforce
+    from 10 and 1 have 12: "c @ r = b" by simp
+    from 1 and 12 and 11 have 13: "\<exists> l'. (delStep N) l l' \<and> X = l' @ r"
+      by force
+    show ?thesis
+      by (simp add: "13")
+  next
+    assume y: "((size l) \<le> size a)"
+    from y and 6 have 8: "size r \<ge> size ([NT N] @ b)"
+      by auto
+    from 8 and 7 have 9: "\<exists> c. r = c @ ([NT N] @ b)" (is "\<exists> c. ?P c")
+      by auto
+    then obtain c where 10: "?P c" by blast
+    from 10 and 1 have 11: "(delStep N) r (c @ b)"
+      apply(unfold delStep_def, auto) 
+      using delStep_def DelSingleNTFromElemListSet_def by fastforce
+    from 10 and 1 have 12: "l @ c = a" by simp
+    from 1 and 12 and 11 have 13: "\<exists> r'. (delStep N) r r' \<and> X = l @ r'"
+      by force
+    show ?thesis
+      by (simp add: "13")
+  qed
+qed  
+
+lemma Del_Part13:    
+  assumes a: "\<And>l r. (delInN N n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X)"
+  assumes b: "delInN N (n+1) (l@r) X"
+  shows      "\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X"
+proof-
+  from b have 0: "\<exists> q. delStep N (l@r) q \<and> delInN N n q X" (is "\<exists> q. ?P q")
+    by auto  
+  then obtain q where 1 : "?P q" by blast
+  from 1 and Del_Part12 have 2:"(\<exists> l'. delStep N l l' \<and> l' @ r = q) \<or> (\<exists> r'. delStep N r r' \<and> l @ r' = q)"
+    by metis
+  have 3: "\<And> x. delInN N 0 x x" 
+    by simp
+  from 3 have 4: "\<And> x. delNT N x x" 
+    using delNT_def by metis
+  from 1 have 5: "\<exists>l1 r1. delNT N l l1 \<and> delNT N r r1 \<and> l1 @ r1 = q" (is "\<exists> l1 r1. ?P l1 r1")
+    by (meson "2" "4" Del_Part5)
+  then obtain l1 r1 where 6: "?P l1 r1" by blast
+  from 1 and 6 have 7: "delInN N n (l1@r1) X"
+    by blast
+  from a and 7 have 8: "\<exists>l' r'. delNT N l1 l' \<and> delNT N r1 r' \<and> l' @ r' = X" (is "\<exists> l' r'. ?P l' r'")
+    by blast
+  then obtain l' r' where 9: "?P l' r'" by blast
+  from 9 and 6 and 2 show ?thesis
+    by (metis Del_Part2)
+qed
+
+lemma Del_Part14:
+  assumes a: "delNT N (l @ r) X"
+  shows      "\<exists> l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X"
+proof-
+  from a have 0: "\<exists> n. delInN N n (l @ r) X" (is "\<exists> n. ?P n")
+    by (simp add: delNT_def)
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> l r. (delInN N n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X)"
+    apply(induction n)
+     apply (meson delInN.simps(1) delNT_def)
+    by (smt (verit, ccfv_threshold) Del_Part13 One_nat_def add.right_neutral add_Suc_right)
+  from 2 and 1 show ?thesis
+    by force
+qed
+
+lemma Del_Part15:
+  assumes a: "(A', l@r) \<in> DelNTFromElemListSet N"
+  shows      "\<exists> l' r'. (l', l) \<in> DelNTFromElemListSet N \<and> (r', r) \<in> DelNTFromElemListSet N \<and> A' = l' @ r'"
+proof-
+  from a show ?thesis
+    by (metis Del_Part11 Del_Part14)
+qed
+
+lemma Del_Part16:
+  assumes a: "A' \<in>  DelAllNullableNTsFromElemList (l@r) Rs"
+  shows      "\<exists> l' r'. l' \<in> DelAllNullableNTsFromElemList l Rs \<and> r' \<in> DelAllNullableNTsFromElemList r Rs \<and> A' = l' @ r'"
+proof-
+  from a show ?thesis
+    apply(unfold DelAllNullableNTsFromElemList_def) 
+    using Del_Part15 by fastforce
+qed
+
+lemma Del_Part17:
+  assumes a: "(R1, R2) \<in> DelNTFromRuleSet N"
+  shows      "fst R1 = fst R2"
+proof-
+  from a show ?thesis
+    apply(simp add: DelNTFromRuleSet_def)
+    by(induction rule: rtrancl.induct, auto)
+qed
+
+lemma Del_Part18:
+  assumes a: "(R, R') \<in> DelNTFromRuleSet N"
+  assumes b: "R = (S, rhs)"
+  shows      "\<exists> rhs'. (rhs, rhs') \<in> DelNTFromElemListSet N \<and> R' = (S, rhs')"
+proof-
+  from a and b show ?thesis
+    apply(simp add: DelNTFromRuleSet_def)
+    apply(induction rule: rtrancl.induct)
+     apply(simp add: DelNTFromElemListSet_def)
+    using b apply blast
+    by (smt (verit, ccfv_threshold) DelNTFromElemListSet_def Pair_inject mem_Collect_eq rtrancl.simps)
+qed    
+
+lemma Del_Part19:
+  assumes a: "(rhs, rhs') \<in> DelNTFromElemListSet N"
+  shows      "((S, rhs), (S, rhs')) \<in> DelNTFromRuleSet N"
+proof-
+  from a show ?thesis
+    apply(simp add: DelNTFromElemListSet_def)
+    apply(induction rule: rtrancl.induct)
+    apply(simp add: DelNTFromRuleSet_def)
+    apply(simp add: DelNTFromRuleSet_def)
+    by (simp add: rtrancl.rtrancl_into_rtrancl)
+qed
+    
+lemma Del_Part20:
+  assumes a: "Rs2 = (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+  assumes b: "[NT A] -Rs1\<rightarrow> rhs"
+  assumes c: "rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1"
+  shows      "(A, rhs') \<in> Rs2"
+proof-
+  from b have 0: "(A, rhs) \<in> Rs1"
+    by (smt (verit, ccfv_SIG) Elem.inject(1) Pair_inject ProductionStep_def Productions_def 
+        append.right_neutral append_Nil append_eq_Cons_conv append_is_Nil_conv list.discI list.inject mem_Collect_eq)
+  from a and 0 and c have 1: "(A, rhs') \<in> Rs2"
+    apply(simp add: DelAllNullableNTsFromRules_def DelAllNullableNTsFromElemList_def DelNTFromRule_def)
+    by (meson Del_Part19)
+  from 1 show ?thesis
+    by auto
+qed
+
+lemma Del_Part21:
+  assumes a: "transformDel G1 G2"
+  assumes b: "[NT A] -(snd G1)\<rightarrow> rhs"
+  assumes c: "rhs' \<noteq> Nil"
+  assumes d: "rhs' \<in> DelAllNullableNTsFromElemList rhs (snd G1)"
+  shows      "(A, rhs') \<in> (snd G2)"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformDel_def)
+  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
+  from c have 2: "\<And> H. (A, rhs') \<in> H \<Longrightarrow> (A, rhs') \<in> RemoveAllEpsilonProds S H"
+    apply(unfold RemoveAllEpsilonProds_def) 
+    by blast
+  have 3: "(A, rhs') \<in> (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" 
+    by (metis "1" Del_Part20 b d snd_conv)
+  from 3 and 2 have 4: "(A, rhs') \<in> Rs2"
+    using "1" by presburger
+  from 4 and 1 show ?thesis
+    by force
+qed
+
+lemma Del_Part22:
+  assumes a: "delStep N a a'"
+  shows      "delStep N (l@a@r) (l@a'@r)"
+proof-
+  from a show ?thesis
+    apply(unfold delStep_def DelSingleNTFromElemListSet_def)
+    by (smt (verit, best) append.assoc append_Cons mem_Collect_eq prod.inject)
+qed
+
+lemma Del_Part23:
+  assumes a: "delInN N n a a'"
+  shows      "delInN N n (l@a@r) (l@a'@r)"
+proof-
+  have 0: "\<And> N a a'. delInN N n a a' \<Longrightarrow> delInN N n (l@a@r) (l@a'@r)"
+    apply(induction n)
+     apply auto[1]
+    by (meson Del_Part22 delInN.simps(2))
+  from 0 show ?thesis
+    using assms by blast
+qed
+
+lemma Del_Part24:
+  assumes a: "delNT N a a'"
+  shows      "delNT N (l@a@r) (l@a'@r)"
+proof-
+  from a have 0: "\<exists> n. delInN N n a a'" (is "\<exists>n. ?P n")
+    by (simp add: delNT_def)
+  then obtain n where 1: "?P n" by blast
+  from 1 have 2: "delInN N n (l@a@r) (l@a'@r)"
+    by (simp add: Del_Part23)
+  from 2 show ?thesis
+    by (simp add: delNT_def, auto)
+qed
+
+lemma Del_Part25:
+  assumes a: "delNT N l l'"
+  assumes b: "delNT N r r'"
+  shows      "delNT N (l@r) (l'@r')"
+proof-
+  from a have 0: "delNT N (l@r) (l'@r)"
+    by (metis Del_Part24 append_self_conv2)
+  from 0 and b have 1: "delNT N (l'@r) (l'@r')"
+    by (metis Del_Part24 append.right_neutral)
+  from 0 and 1 show ?thesis
+    by (meson Del_Part2)
+qed
+
+lemma Del_Part26:
+  assumes a: "(a, a') \<in> DelNTFromElemListSet N"
+  shows      "((l@a@r), (l@a'@r)) \<in> DelNTFromElemListSet N "
+proof-
+  from a and Del_Part24 show ?thesis
+    by (metis Del_Part11)
+qed
+
+lemma Del_Part27:
+  assumes a: "a' \<in> DelAllNullableNTsFromElemList a Rs1"
+  shows      "(l@a'@r) \<in> DelAllNullableNTsFromElemList (l@a@r) Rs1 "
+proof-
+  from a show ?thesis
+    apply(unfold DelAllNullableNTsFromElemList_def)
+    using Del_Part26 by fastforce
+qed
+
+lemma Del_Part28:
+  assumes a: "(l', l) \<in> DelNTFromElemListSet N"
+  assumes b: "(r', r) \<in> DelNTFromElemListSet N"
+  shows      "((l'@r'), (l@r)) \<in> DelNTFromElemListSet N"
+proof-
+  from a and b and Del_Part25 show ?thesis
+    by (metis Del_Part11)
+qed
+
+lemma Del_Part29:
+  assumes a: "l' \<in> DelAllNullableNTsFromElemList l Rs1"
+  assumes b: "r' \<in> DelAllNullableNTsFromElemList r Rs1"
+  shows      "(l'@r') \<in> DelAllNullableNTsFromElemList (l@r) Rs1"
+proof-
+  from a have 0: "(l'@r) \<in> DelAllNullableNTsFromElemList (l@r) Rs1"
+    apply(simp add: DelAllNullableNTsFromElemList_def)
+    by (metis Del_Part26 append.left_neutral)
+  from b and 0 have 1: "(l'@r') \<in> DelAllNullableNTsFromElemList (l'@r) Rs1"
+    apply(simp add: DelAllNullableNTsFromElemList_def)
+    by (metis Del_Part26 append.right_neutral)
+  from 0 and 1 show ?thesis
+    apply(simp add: DelAllNullableNTsFromElemList_def)
+    sledgehammer
+qed
+
+lemma Del_Part27:
+  assumes a: "transformDel G1 G2"
+  assumes b: "\<And>m A x. (m \<le> n \<and> x \<noteq> Nil \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> \<exists> A'. A' \<in> DelAllNullableNTsFromElemList A (snd G1) \<and> A' -(snd G2)\<rightarrow>\<^sup>* x)"
+  assumes c: "ProducesInN A (snd G1) (n+1) x"
+  assumes e: "x \<noteq> Nil"
+  shows      "\<exists> A'. A' \<in> DelAllNullableNTsFromElemList A (snd G1) \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformDel_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  from r have f: "G1 = (S, Rs1)" by auto
+  from r have g: "G2 = (S, Rs2)" by auto
+  from r have h: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" by auto
+  from c and f have 1: "\<exists> t. ProducesInN t Rs1 n x \<and> A -Rs1\<rightarrow> t"
+    (is "\<exists> t. ?P t")
+    by auto
+  then obtain t where 2: "?P t" by blast
+  from 2 have 3: "\<exists> l r N rhs. A = l @ [NT N] @ r \<and> t = l @ rhs @ r \<and> (N, rhs) \<in> Rs1"
+    (is "\<exists> l r N rhs. ?P l r N rhs")
+    by(unfold ProductionStep_def Productions_def, auto)
+  then obtain l r N rhs where 4: "?P l r N rhs" by blast
+  from 2 and b and e and g and f have 5: "\<exists> t'. t' \<in> DelAllNullableNTsFromElemList t Rs1 \<and> t' -Rs2\<rightarrow>\<^sup>* x"
+    (is "\<exists> t'. ?P t'")
+    by auto
+  then obtain t' where 6: "?P t'" by blast
+  from 6 have 7: "\<exists> l' rr'. t' = l' @ rr' \<and> l' \<in> DelAllNullableNTsFromElemList l Rs1 \<and> rr' \<in> DelAllNullableNTsFromElemList (rhs@r) Rs1"
+    (is "\<exists> l' rr'. ?P l' rr'")
+    using "4" Del_Part16 by fastforce
+  then obtain l' rr' where 8: "?P l' rr'" by blast
+  from 8 have 9: "\<exists> r' rhs'. rr' = rhs' @ r' \<and> r' \<in> DelAllNullableNTsFromElemList r Rs1 \<and> rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1"
+    (is "\<exists> r' rhs'. ?P r' rhs'")
+    using Del_Part16 by fastforce
+  then obtain r' rhs' where 10: "?P r' rhs'" by blast
+  show ?thesis
+  proof cases
+    assume x: "rhs = Nil"
+    from x and 4 have 11: "(N, []) \<in> Rs1" by auto
+    from 10 have 12: "rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1" by auto
+    from 12 and x have 13: "rhs' = Nil"
+      apply(unfold DelAllNullableNTsFromElemList_def DelNTFromElemListSet_def)
+      by (smt (verit, del_insts) CollectD append_is_Nil_conv list.discI rtrancl.simps snd_conv)
+    from 13 have 14: "t' = l' @ r'"
+      by (simp add: "10" "8")
+    from 11 have 15: "[NT N] -Rs1\<rightarrow> []"
+      by (simp add: ProductionStep_def Productions_def)
+    from 15 have 16: "[NT N] -Rs1\<rightarrow>\<^sup>* []"
+      by (meson ProducesInN.simps(1) ProducesInN.simps(2) Produces_def)
+    from 11 and 16 have 17: "[] \<in> Language N Rs1"
+      apply(unfold Language_def PartialEvalLanguage_def IsTerminalWord_def)
+      by simp
+    from 17 have 18: "[] \<in> DelAllNullableNTsFromElemList [NT N] Rs1"
+      apply(unfold DelAllNullableNTsFromElemList_def DelNTFromElemListSet_def)
+      by fastforce
+    from 10 and 
+      
+    
+      
+
   
+ 
+
+(* Double induction yay, do it on the length of t now where A -Rs1\<rightarrow> t and t -Rs1\<rightarrow>^(n) x *)
+lemma Del_Part2:
+  assumes a: "transformDel G1 G2"
+  assumes b: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> x \<noteq> Nil \<and> [NT A] -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> [NT A] -(snd G2)\<rightarrow>\<^sup>* x)"
+  assumes c: "ProducesInN [NT A] (snd G1) (n+1) x"
+  assumes d: "IsTerminalWord x"
+  shows      "[NT A] -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformDel_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have g: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" by auto
+  from c and e have 1: "\<exists> rhs. ProducesInN rhs Rs1 n x \<and> [NT A] -Rs1\<rightarrow> rhs"
+    (is "\<exists> rhs. ?P rhs")
+    by auto
+  then obtain rhs where 2: "?P rhs" by blast
+  (* there exists a t' such that A -Rs2\<rightarrow> t' and t' -Rs2\<rightarrow>\<^sup>* x *)
+  (* find that t' by induction on t ig *)
+
 theorem verifyTransformDel2: 
   assumes a: "transformDel2 G1 G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
