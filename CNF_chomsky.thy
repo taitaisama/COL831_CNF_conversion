@@ -485,7 +485,8 @@ proof-
   from 1 and 3 have 10: "(n-a-b)+(b-1)+a = n-1"
     using "5" by force
   from 10 and 9 have 11: "ProducesInN (l @ t @ r) Rs (n-1) x" by auto
-  from 7 have 12: "\<exists> ln rn Nn rhs. [NT N] = ln @ [NT Nn] @ rn \<and> t = ln @ rhs @ rn \<and> (Nn, rhs) \<in> Rs" (is "\<exists> ln rn Nn rhs. ?P  ln rn Nn rhs")
+  from 7 have 12: "\<exists> ln rn Nn rhs. [NT N] = ln @ [NT Nn] @ rn \<and> t = ln @ rhs @ rn \<and> (Nn, rhs) \<in> Rs" 
+    (is "\<exists> ln rn Nn rhs. ?P  ln rn Nn rhs")
     apply(unfold ProductionStep_def Productions_def) 
     by blast
   then obtain ln rn Nn rhs where 13: "?P ln rn Nn rhs" by blast
@@ -1686,23 +1687,24 @@ proof-
     by fastforce
 qed
 
-definition DelSingleNTFromElemListSet :: "'n \<Rightarrow> (('n, 't) Elem list \<times> ('n, 't) Elem list) set"
-  where "DelSingleNTFromElemListSet N \<equiv> {((l @ r), (l @ NT(N) # r)) | l r. True}"
+definition DelSingleNullableNTFromElemListSet :: "('n, 't) RuleSet \<Rightarrow> (('n, 't) Elem list \<times> ('n, 't) Elem list) set"
+  where "DelSingleNullableNTFromElemListSet Rs \<equiv> {((l @ r), (l @ NT(N) # r)) | l r N. [] \<in> Language N Rs}"
 
-definition DelNTFromElemListSet :: "'n \<Rightarrow> (('n, 't) Elem list \<times> ('n, 't) Elem list) set"
-  where "DelNTFromElemListSet N \<equiv> {((l @ r), (l @ NT(N) # r)) | l r. True}\<^sup>*"
+definition DelSingleNullableNTFromElemList :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "DelSingleNullableNTFromElemList Rs E1 E2 \<equiv> (E2, E1) \<in> DelSingleNullableNTFromElemListSet Rs"
 
-definition DelNTFromRuleSet :: "'n \<Rightarrow> (('n, 't) Rule \<times> ('n, 't) Rule) set"
-  where "DelNTFromRuleSet N \<equiv> {((S, l @ r), (S, l @ NT(N) # r)) | S l r. True}\<^sup>*"
+fun DelNullableNTsFromElemListInN :: "('n, 't) RuleSet \<Rightarrow> nat \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "DelNullableNTsFromElemListInN Rs 0 E1 E2 = (E1 = E2)" |
+        "DelNullableNTsFromElemListInN Rs (Suc n) E1 E2 = (\<exists> t. DelSingleNullableNTFromElemList Rs E1 t \<and> DelNullableNTsFromElemListInN Rs n t E2)"
 
-definition DelNTFromRule :: "'n \<Rightarrow> ('n, 't) Rule set \<Rightarrow> ('n, 't) Rule set"
-  where "DelNTFromRule N R \<equiv> { NR | NR OR. (NR, OR) \<in> DelNTFromRuleSet N \<and> OR \<in> R }"
+definition DelNullableNTsFromElemList :: "('n, 't) RuleSet  \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "DelNullableNTsFromElemList Rs E1 E2 \<equiv> \<exists> n. DelNullableNTsFromElemListInN Rs n E1 E2" 
+
+definition DelNullableNTsFromRule :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
+  where "DelNullableNTsFromRule Rs R1 R2 \<equiv> \<exists> N rhs1 rhs2. R1 = (N, rhs1) \<and> R2 = (N, rhs2) \<and> DelNullableNTsFromElemList Rs rhs1 rhs2"
 
 definition DelAllNullableNTsFromRules :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
-  where "DelAllNullableNTsFromRules X = {R | R N. R \<in> DelNTFromRule N X \<and> Nil \<in> \<lbrakk>N\<rbrakk>\<^sub>X}"
-
-definition DelAllNullableNTsFromElemList :: "('n, 't) Elem list \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) Elem list set"
-  where "DelAllNullableNTsFromElemList E1 X = {E | E N. (E, E1) \<in> DelNTFromElemListSet N \<and> Nil \<in> \<lbrakk>N\<rbrakk>\<^sub>X}"
+  where "DelAllNullableNTsFromRules X = { NR | NR OR. OR \<in> X \<and> DelNullableNTsFromRule X OR NR}"
 
 definition RemoveAllEpsilonProds :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "RemoveAllEpsilonProds S X = {R | R N Rhs. R \<in> X \<and> (N, Rhs) = R \<and> (N = S \<or> Rhs \<noteq> Nil)}"
@@ -1711,24 +1713,14 @@ definition transformDel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow
   where "transformDel G1 G2 \<equiv> \<exists> S Rs1 Rs2.
                                (S, Rs1) = G1
                                \<and> (S, Rs2) = G2
-                               \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
-
-definition delStep :: "'n \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
-  where "delStep N E1 E2 \<equiv> (E2, E1) \<in> DelSingleNTFromElemListSet N"
-
-fun delInN :: "'n \<Rightarrow> nat \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
-  where "delInN N 0 E1 E2 = (E1 = E2)" |
-        "delInN N (Suc a) E1 E2 = (\<exists>t. (delStep N E1 t) \<and> (delInN N a t E2))"
-
-definition delNT :: "'n \<Rightarrow> ('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
-  where "delNT N E1 E2 \<equiv> \<exists> n. delInN N n E1 E2"
+                               \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
 
 lemma Del_Part1:
-  assumes a: "delInN N n1 A B"
-  assumes b: "delInN N n2 B C"
-  shows      "delInN N (n1 + n2) A C"
+  assumes a: "DelNullableNTsFromElemListInN N n1 A B"
+  assumes b: "DelNullableNTsFromElemListInN N n2 B C"
+  shows      "DelNullableNTsFromElemListInN N (n1 + n2) A C"
 proof-
-  have 0: "\<And> A B C m. delInN N n1 A B \<and> delInN N m B C \<Longrightarrow> delInN N (n1+m) A C"
+  have 0: "\<And> A B C m. DelNullableNTsFromElemListInN N n1 A B \<and> DelNullableNTsFromElemListInN N m B C \<Longrightarrow> DelNullableNTsFromElemListInN N (n1+m) A C"
     apply(induction n1)
     apply simp
     by auto
@@ -1737,109 +1729,30 @@ proof-
 qed
 
 lemma Del_Part2:
-  assumes a: "delNT N A B"
-  assumes b: "delNT N B C"
-  shows      "delNT N A C"
+  assumes a: "DelNullableNTsFromElemList N A B"
+  assumes b: "DelNullableNTsFromElemList N B C"
+  shows      "DelNullableNTsFromElemList N A C"
 proof-
   from a and b and Del_Part1 show ?thesis
-    apply(unfold delNT_def)
+    apply(unfold DelNullableNTsFromElemList_def)
     by fastforce
 qed
 
 lemma Del_Part3:
-  assumes a: "(delNT N)\<^sup>+\<^sup>+ a b"
-  shows      "(delNT N) a b"
+  assumes a: "(DelSingleNullableNTFromElemList Rs) a b"
+  shows      "(DelNullableNTsFromElemList Rs) a b"
 proof-
-  from Del_Part2 and a show ?thesis
-    by (smt (verit, ccfv_SIG) tranclp_induct)
+  from a show ?thesis
+    by (meson DelNullableNTsFromElemListInN.simps(1) DelNullableNTsFromElemListInN.simps(2) DelNullableNTsFromElemList_def)
 qed
 
 lemma Del_Part4:
-  shows      "(delNT N)\<^sup>+\<^sup>+ = delNT N"
+  assumes a: "(DelSingleNullableNTFromElemList Rs) (l @ r) X"
+  shows      "(\<exists> l'. (DelSingleNullableNTFromElemList Rs) l l' \<and> X = l' @ r) \<or> (\<exists> r'. (DelSingleNullableNTFromElemList Rs) r r' \<and> X = l @ r')"   
 proof-
-  from Del_Part3 show ?thesis
-    by fastforce
-qed
-
-lemma Del_Part5:
-  assumes a: "(delStep N) a b"
-  shows      "(delNT N) a b"
-proof-
-  from a show ?thesis
-    by (meson delInN.simps(1) delInN.simps(2) delNT_def)
-qed
-
-lemma Del_Part6:
-  shows      "(delNT N)\<^sup>*\<^sup>* = delNT N"
-proof-
-  have 0: "\<And> a. (delNT N) a a"
-    by (meson delInN.simps(1) delNT_def)
-  from Del_Part4 and 0 show ?thesis
-    by (metis antisym_conv predicate2I r_into_rtranclp rtranclp_into_tranclp1)
-qed
-
-lemma Del_Part7:
-  assumes a: "(delStep N)\<^sup>*\<^sup>* a b"
-  shows      "(delNT N) a b"
-proof-
-  from a have 0: "(delNT N)\<^sup>*\<^sup>* a b"
-    by (metis Del_Part5 mono_rtranclp)
-  from 0 and Del_Part6 show ?thesis
-    by metis
-qed
-
-lemma Del_Part8:
-  assumes a: "(delNT N) a b" 
-  shows      "(delStep N)\<^sup>*\<^sup>* a b"
-proof-
-  from a have 0: "\<exists> n. delInN N n a b" (is "\<exists> n. ?P n")
-    by(unfold delNT_def, auto)
-  then obtain n where 1: "?P n" by blast
-  have 2: "\<And>a b. delInN N n a b \<Longrightarrow> (delStep N)\<^sup>*\<^sup>* a b"
-    apply(induction n)
-    apply simp
-    by (meson delInN.simps(2) rtranclp.rtrancl_into_rtrancl rtranclp.rtrancl_refl rtranclp_trans)
-  from 1 and 2 show ?thesis
-    by blast
-qed
-
-lemma Del_Part9:
-  shows      "(delNT N) = (delStep N)\<^sup>*\<^sup>*"
-proof-
-  show ?thesis
-    using Del_Part7 Del_Part8 by fastforce
-qed
-
-lemma Del_Part10:
-  fixes      S :: "('a \<times> 'a) set"
-  fixes      R :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes a: "\<And> a b. R a b \<longleftrightarrow> (b, a) \<in> S"
-  shows      "R\<^sup>*\<^sup>* a b \<longleftrightarrow> (b, a) \<in> S\<^sup>*"
-proof-
-  from a show ?thesis
-    by (smt (verit) Transitive_Closure.rtranclp_rtrancl_eq converse_rtranclp_induct 
-        rtrancl.rtrancl_into_rtrancl rtranclp.rtrancl_into_rtrancl rtranclp.rtrancl_refl)
-qed
-
-lemma Del_Part11:
-  shows      "(delNT N) a b \<longleftrightarrow> (b, a) \<in> DelNTFromElemListSet N"
-proof-
-  have 0: "\<And> a b. delStep N a b \<longleftrightarrow> (b, a) \<in> DelSingleNTFromElemListSet N"
-    apply(unfold delStep_def DelSingleNTFromElemListSet_def)
-    by force
-  have 1: "DelNTFromElemListSet N = (DelSingleNTFromElemListSet N)\<^sup>*"
-    by(unfold DelNTFromElemListSet_def DelSingleNTFromElemListSet_def, auto)
-  from Del_Part9 and Del_Part10 and 0 and 1 show ?thesis
-    by metis
-qed
-
-lemma Del_Part12:
-  assumes a: "(delStep N) (l @ r) X"
-  shows      "(\<exists> l'. (delStep N) l l' \<and> X = l' @ r) \<or> (\<exists> r'. (delStep N) r r' \<and> X = l @ r')"   
-proof-
-  from a have 0: "\<exists>a b. l @ r = (a @ [NT N] @ b) \<and> X = (a @ b)" (is "\<exists> a b. ?P a b")
-    by(unfold delStep_def DelSingleNTFromElemListSet_def, auto) 
-  then obtain a b where 1: "?P a b" by blast
+  from a have 0: "\<exists>a b N. l @ r = (a @ [NT N] @ b) \<and> X = (a @ b) \<and> [] \<in> Language N Rs" (is "\<exists> a b N. ?P a b N")
+    by(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def, auto) 
+  then obtain a b N where 1: "?P a b N" by blast
   from 1 have 3: "(size l \<ge> size (a @ [NT N])) \<Longrightarrow> \<exists> c. l = (a @ [NT N]) @ c"
     by (metis append.assoc listPrefixSize)
   have 4: "size l > size a \<Longrightarrow> size l \<ge> size (a @ [NT N])"
@@ -1860,11 +1773,11 @@ proof-
     from 8 and 3 have 9:"\<exists> c. l = (a @ [NT N]) @ c" (is "\<exists> c. ?P c")
       by auto
     then obtain c where 10: "?P c" by blast
-    from 10 and 1 have 11: "(delStep N) l (a @ c)"
-      apply(unfold delStep_def, auto) 
-      using delStep_def DelSingleNTFromElemListSet_def by fastforce
+    from 10 and 1 have 11: "(DelSingleNullableNTFromElemList Rs) l (a @ c)"
+      apply(unfold DelSingleNullableNTFromElemList_def, auto) 
+      using DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def by fastforce
     from 10 and 1 have 12: "c @ r = b" by simp
-    from 1 and 12 and 11 have 13: "\<exists> l'. (delStep N) l l' \<and> X = l' @ r"
+    from 1 and 12 and 11 have 13: "\<exists> l'. (DelSingleNullableNTFromElemList Rs) l l' \<and> X = l' @ r"
       by force
     show ?thesis
       by (simp add: "13")
@@ -1875,256 +1788,197 @@ proof-
     from 8 and 7 have 9: "\<exists> c. r = c @ ([NT N] @ b)" (is "\<exists> c. ?P c")
       by auto
     then obtain c where 10: "?P c" by blast
-    from 10 and 1 have 11: "(delStep N) r (c @ b)"
-      apply(unfold delStep_def, auto) 
-      using delStep_def DelSingleNTFromElemListSet_def by fastforce
+    from 10 and 1 have 11: "(DelSingleNullableNTFromElemList Rs) r (c @ b)"
+      apply(unfold DelSingleNullableNTFromElemList_def, auto) 
+      using DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def by fastforce
     from 10 and 1 have 12: "l @ c = a" by simp
-    from 1 and 12 and 11 have 13: "\<exists> r'. (delStep N) r r' \<and> X = l @ r'"
+    from 1 and 12 and 11 have 13: "\<exists> r'. (DelSingleNullableNTFromElemList Rs) r r' \<and> X = l @ r'"
       by force
     show ?thesis
       by (simp add: "13")
   qed
 qed  
 
-lemma Del_Part13:    
-  assumes a: "\<And>l r. (delInN N n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X)"
-  assumes b: "delInN N (n+1) (l@r) X"
-  shows      "\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X"
+lemma Del_Part5:    
+  assumes a: "\<And>l r. (DelNullableNTsFromElemListInN Rs n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. DelNullableNTsFromElemList Rs l l' \<and> DelNullableNTsFromElemList Rs r r' \<and> l' @ r' = X)"
+  assumes b: "DelNullableNTsFromElemListInN Rs (n+1) (l@r) X"
+  shows      "\<exists>l' r'. DelNullableNTsFromElemList Rs l l' \<and> DelNullableNTsFromElemList Rs r r' \<and> l' @ r' = X"
 proof-
-  from b have 0: "\<exists> q. delStep N (l@r) q \<and> delInN N n q X" (is "\<exists> q. ?P q")
+  from b have 0: "\<exists> q. DelSingleNullableNTFromElemList Rs (l@r) q \<and> DelNullableNTsFromElemListInN Rs n q X" (is "\<exists> q. ?P q")
     by auto  
   then obtain q where 1 : "?P q" by blast
-  from 1 and Del_Part12 have 2:"(\<exists> l'. delStep N l l' \<and> l' @ r = q) \<or> (\<exists> r'. delStep N r r' \<and> l @ r' = q)"
+  from 1 and Del_Part4 have 2:"(\<exists> l'. DelSingleNullableNTFromElemList Rs l l' \<and> l' @ r = q) \<or> (\<exists> r'. DelSingleNullableNTFromElemList Rs r r' \<and> l @ r' = q)"
     by metis
-  have 3: "\<And> x. delInN N 0 x x" 
+  have 3: "\<And> x. DelNullableNTsFromElemListInN Rs 0 x x" 
     by simp
-  from 3 have 4: "\<And> x. delNT N x x" 
-    using delNT_def by metis
-  from 1 have 5: "\<exists>l1 r1. delNT N l l1 \<and> delNT N r r1 \<and> l1 @ r1 = q" (is "\<exists> l1 r1. ?P l1 r1")
-    by (meson "2" "4" Del_Part5)
+  from 3 have 4: "\<And> x. DelNullableNTsFromElemList Rs x x" 
+    using DelNullableNTsFromElemList_def by metis
+  from 1 have 5: "\<exists>l1 r1. DelNullableNTsFromElemList Rs l l1 \<and> DelNullableNTsFromElemList Rs r r1 \<and> l1 @ r1 = q" (is "\<exists> l1 r1. ?P l1 r1")
+    using "2" "4" Del_Part3 by blast
   then obtain l1 r1 where 6: "?P l1 r1" by blast
-  from 1 and 6 have 7: "delInN N n (l1@r1) X"
+  from 1 and 6 have 7: "DelNullableNTsFromElemListInN Rs n (l1@r1) X"
     by blast
-  from a and 7 have 8: "\<exists>l' r'. delNT N l1 l' \<and> delNT N r1 r' \<and> l' @ r' = X" (is "\<exists> l' r'. ?P l' r'")
+  from a and 7 have 8: "\<exists>l' r'. DelNullableNTsFromElemList Rs l1 l' \<and> DelNullableNTsFromElemList Rs r1 r' \<and> l' @ r' = X" (is "\<exists> l' r'. ?P l' r'")
     by blast
   then obtain l' r' where 9: "?P l' r'" by blast
   from 9 and 6 and 2 show ?thesis
     by (metis Del_Part2)
 qed
 
-lemma Del_Part14:
-  assumes a: "delNT N (l @ r) X"
-  shows      "\<exists> l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X"
+lemma Del_Part6:
+  assumes a: "DelNullableNTsFromElemList Rs (l @ r) X"
+  shows      "\<exists> l' r'. DelNullableNTsFromElemList Rs l l' \<and> DelNullableNTsFromElemList Rs r r' \<and> l' @ r' = X"
 proof-
-  from a have 0: "\<exists> n. delInN N n (l @ r) X" (is "\<exists> n. ?P n")
-    by (simp add: delNT_def)
+  from a have 0: "\<exists> n. DelNullableNTsFromElemListInN Rs n (l @ r) X" (is "\<exists> n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> l r. (delInN N n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. delNT N l l' \<and> delNT N r r' \<and> l' @ r' = X)"
+  have 2: "\<And> l r. (DelNullableNTsFromElemListInN Rs n (l @ r) X) \<Longrightarrow> (\<exists>l' r'. DelNullableNTsFromElemList Rs l l' \<and> DelNullableNTsFromElemList Rs r r' \<and> l' @ r' = X)"
     apply(induction n)
-     apply (meson delInN.simps(1) delNT_def)
-    by (smt (verit, ccfv_threshold) Del_Part13 One_nat_def add.right_neutral add_Suc_right)
+     apply (meson DelNullableNTsFromElemListInN.simps(1) DelNullableNTsFromElemList_def)
+    by (smt (verit, ccfv_threshold) Del_Part5 One_nat_def add.right_neutral add_Suc_right)
   from 2 and 1 show ?thesis
     by force
 qed
 
-lemma Del_Part15:
-  assumes a: "(A', l@r) \<in> DelNTFromElemListSet N"
-  shows      "\<exists> l' r'. (l', l) \<in> DelNTFromElemListSet N \<and> (r', r) \<in> DelNTFromElemListSet N \<and> A' = l' @ r'"
-proof-
-  from a show ?thesis
-    by (metis Del_Part11 Del_Part14)
-qed
-
-lemma Del_Part16:
-  assumes a: "A' \<in>  DelAllNullableNTsFromElemList (l@r) Rs"
-  shows      "\<exists> l' r'. l' \<in> DelAllNullableNTsFromElemList l Rs \<and> r' \<in> DelAllNullableNTsFromElemList r Rs \<and> A' = l' @ r'"
-proof-
-  from a show ?thesis
-    apply(unfold DelAllNullableNTsFromElemList_def) 
-    using Del_Part15 by fastforce
-qed
-
-lemma Del_Part17:
-  assumes a: "(R1, R2) \<in> DelNTFromRuleSet N"
-  shows      "fst R1 = fst R2"
-proof-
-  from a show ?thesis
-    apply(simp add: DelNTFromRuleSet_def)
-    by(induction rule: rtrancl.induct, auto)
-qed
-
-lemma Del_Part18:
-  assumes a: "(R, R') \<in> DelNTFromRuleSet N"
-  assumes b: "R = (S, rhs)"
-  shows      "\<exists> rhs'. (rhs, rhs') \<in> DelNTFromElemListSet N \<and> R' = (S, rhs')"
-proof-
-  from a and b show ?thesis
-    apply(simp add: DelNTFromRuleSet_def)
-    apply(induction rule: rtrancl.induct)
-     apply(simp add: DelNTFromElemListSet_def)
-    using b apply blast
-    by (smt (verit, ccfv_threshold) DelNTFromElemListSet_def Pair_inject mem_Collect_eq rtrancl.simps)
-qed    
-
-lemma Del_Part19:
-  assumes a: "(rhs, rhs') \<in> DelNTFromElemListSet N"
-  shows      "((S, rhs), (S, rhs')) \<in> DelNTFromRuleSet N"
-proof-
-  from a show ?thesis
-    apply(simp add: DelNTFromElemListSet_def)
-    apply(induction rule: rtrancl.induct)
-    apply(simp add: DelNTFromRuleSet_def)
-    apply(simp add: DelNTFromRuleSet_def)
-    by (simp add: rtrancl.rtrancl_into_rtrancl)
-qed
-    
-lemma Del_Part20:
-  assumes a: "Rs2 = (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
-  assumes b: "[NT A] -Rs1\<rightarrow> rhs"
-  assumes c: "rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1"
-  shows      "(A, rhs') \<in> Rs2"
-proof-
-  from b have 0: "(A, rhs) \<in> Rs1"
-    by (smt (verit, ccfv_SIG) Elem.inject(1) Pair_inject ProductionStep_def Productions_def 
-        append.right_neutral append_Nil append_eq_Cons_conv append_is_Nil_conv list.discI list.inject mem_Collect_eq)
-  from a and 0 and c have 1: "(A, rhs') \<in> Rs2"
-    apply(simp add: DelAllNullableNTsFromRules_def DelAllNullableNTsFromElemList_def DelNTFromRule_def)
-    by (meson Del_Part19)
-  from 1 show ?thesis
-    by auto
-qed
-
-lemma Del_Part21:
+lemma Del_Part7:
   assumes a: "transformDel G1 G2"
   assumes b: "[NT A] -(snd G1)\<rightarrow> rhs"
   assumes c: "rhs' \<noteq> Nil"
-  assumes d: "rhs' \<in> DelAllNullableNTsFromElemList rhs (snd G1)"
+  assumes d: "DelNullableNTsFromElemList (snd G1) rhs rhs'"
   shows      "(A, rhs') \<in> (snd G2)"
 proof-
   from a have 0: "\<exists> S Rs1 Rs2. 
                   (S, Rs1) = G1
                   \<and> (S, Rs2) = G2
-                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+                  \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
     by (simp add: transformDel_def)
   then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
   from c have 2: "\<And> H. (A, rhs') \<in> H \<Longrightarrow> (A, rhs') \<in> RemoveAllEpsilonProds S H"
     apply(unfold RemoveAllEpsilonProds_def) 
     by blast
-  have 3: "(A, rhs') \<in> (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" 
-    by (metis "1" Del_Part20 b d snd_conv)
-  from 3 and 2 have 4: "(A, rhs') \<in> Rs2"
-    using "1" by presburger
-  from 4 and 1 show ?thesis
+  from b have 3: "(A, rhs) \<in> Rs1"
+    by (smt (verit, ccfv_threshold) "1" CollectD Elem.inject(1) Nil_is_append_conv Pair_inject
+        ProductionStep_def Productions_def append_eq_Cons_conv append_self_conv append_self_conv2 list.inject sndI)
+  from d have 4: "(A, rhs') \<in> (DelAllNullableNTsFromRules Rs1)" 
+    apply(unfold DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    using "1" "3" by force
+  from 3 and 2 have 5: "(A, rhs') \<in> Rs2"
+    using "1" "4" by blast
+  from 5 and 1 show ?thesis
     by force
 qed
 
-lemma Del_Part22:
-  assumes a: "delStep N a a'"
-  shows      "delStep N (l@a@r) (l@a'@r)"
+lemma Del_Part8:
+  assumes a: "DelSingleNullableNTFromElemList Rs a a'"
+  shows      "DelSingleNullableNTFromElemList Rs (l@a@r) (l@a'@r)"
 proof-
   from a show ?thesis
-    apply(unfold delStep_def DelSingleNTFromElemListSet_def)
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def)
     by (smt (verit, best) append.assoc append_Cons mem_Collect_eq prod.inject)
 qed
 
-lemma Del_Part23:
-  assumes a: "delInN N n a a'"
-  shows      "delInN N n (l@a@r) (l@a'@r)"
+lemma Del_Part9:
+  assumes a: "DelNullableNTsFromElemListInN Rs n a a'"
+  shows      "DelNullableNTsFromElemListInN Rs n (l@a@r) (l@a'@r)"
 proof-
-  have 0: "\<And> N a a'. delInN N n a a' \<Longrightarrow> delInN N n (l@a@r) (l@a'@r)"
+  have 0: "\<And> N a a'. DelNullableNTsFromElemListInN Rs n a a' \<Longrightarrow> DelNullableNTsFromElemListInN Rs n (l@a@r) (l@a'@r)"
     apply(induction n)
      apply auto[1]
-    by (meson Del_Part22 delInN.simps(2))
+    by (meson Del_Part8 DelNullableNTsFromElemListInN.simps(2))
   from 0 show ?thesis
     using assms by blast
 qed
 
-lemma Del_Part24:
-  assumes a: "delNT N a a'"
-  shows      "delNT N (l@a@r) (l@a'@r)"
+lemma Del_Part10:
+  assumes a: "DelNullableNTsFromElemList Rs a a'"
+  shows      "DelNullableNTsFromElemList Rs (l@a@r) (l@a'@r)"
 proof-
-  from a have 0: "\<exists> n. delInN N n a a'" (is "\<exists>n. ?P n")
-    by (simp add: delNT_def)
+  from a have 0: "\<exists> n. DelNullableNTsFromElemListInN Rs n a a'" (is "\<exists>n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)
   then obtain n where 1: "?P n" by blast
-  from 1 have 2: "delInN N n (l@a@r) (l@a'@r)"
-    by (simp add: Del_Part23)
+  from 1 have 2: "DelNullableNTsFromElemListInN Rs n (l@a@r) (l@a'@r)"
+    by (simp add: Del_Part9)
   from 2 show ?thesis
-    by (simp add: delNT_def, auto)
+    by (simp add: DelNullableNTsFromElemList_def, auto)
 qed
 
-lemma Del_Part25:
-  assumes a: "delNT N l l'"
-  assumes b: "delNT N r r'"
-  shows      "delNT N (l@r) (l'@r')"
+lemma Del_Part11:
+  assumes a: "DelNullableNTsFromElemList Rs l l'"
+  assumes b: "DelNullableNTsFromElemList Rs r r'"
+  shows      "DelNullableNTsFromElemList Rs (l@r) (l'@r')"
 proof-
-  from a have 0: "delNT N (l@r) (l'@r)"
-    by (metis Del_Part24 append_self_conv2)
-  from 0 and b have 1: "delNT N (l'@r) (l'@r')"
-    by (metis Del_Part24 append.right_neutral)
+  from a have 0: "DelNullableNTsFromElemList Rs (l@r) (l'@r)"
+    by (metis Del_Part10 append_self_conv2)
+  from 0 and b have 1: "DelNullableNTsFromElemList Rs (l'@r) (l'@r')"
+    by (metis Del_Part10 append.right_neutral)
   from 0 and 1 show ?thesis
     by (meson Del_Part2)
 qed
 
-lemma Del_Part26:
-  assumes a: "(a, a') \<in> DelNTFromElemListSet N"
-  shows      "((l@a@r), (l@a'@r)) \<in> DelNTFromElemListSet N "
+lemma Del_Part12:
+  assumes a: "DelNullableNTsFromElemList Rs [] a"
+  shows      "a = []"
 proof-
-  from a and Del_Part24 show ?thesis
-    by (metis Del_Part11)
+  have 0: "\<And> a. \<not> DelSingleNullableNTFromElemList Rs [] a"
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def)
+    by auto
+  from a have 1: "\<exists> n. DelNullableNTsFromElemListInN Rs n [] a"(is "\<exists> n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)
+  then obtain n where 2: "?P n" by blast  
+  from 2 and 0 show ?thesis
+    by(induction n, auto)
 qed
 
-lemma Del_Part27:
-  assumes a: "a' \<in> DelAllNullableNTsFromElemList a Rs1"
-  shows      "(l@a'@r) \<in> DelAllNullableNTsFromElemList (l@a@r) Rs1 "
+lemma Del_Part13:
+  assumes a: "(\<And>a a'. DelNullableNTsFromElemListInN Rs n a a' \<Longrightarrow> a -Rs\<rightarrow>\<^sup>* a')" 
+  assumes b: "DelNullableNTsFromElemListInN Rs (Suc n) a a'"
+  shows      "a -Rs\<rightarrow>\<^sup>* a'"
 proof-
-  from a show ?thesis
-    apply(unfold DelAllNullableNTsFromElemList_def)
-    using Del_Part26 by fastforce
+  from b have 0: "\<exists> t. DelSingleNullableNTFromElemList Rs a t \<and> DelNullableNTsFromElemListInN Rs n t a'" (is "\<exists> t. ?P t")
+    by simp
+  then obtain t where 1: "?P t" by blast
+  from 1 and a have 2: "t -Rs\<rightarrow>\<^sup>* a'" by blast
+  from 1 have 3: "DelSingleNullableNTFromElemList Rs a t"
+    by blast
+  from 3  have 4: "a -Rs\<rightarrow>\<^sup>* t"
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def Language_def PartialEvalLanguage_def)
+    using productionAppend3 by fastforce
+  from 4 and 2 show ?thesis
+    using transitiveProductions by auto
 qed
 
-lemma Del_Part28:
-  assumes a: "(l', l) \<in> DelNTFromElemListSet N"
-  assumes b: "(r', r) \<in> DelNTFromElemListSet N"
-  shows      "((l'@r'), (l@r)) \<in> DelNTFromElemListSet N"
+lemma Del_Part14:
+  assumes a: "DelNullableNTsFromElemList Rs a a'"
+  shows      "a -Rs\<rightarrow>\<^sup>* a'"
 proof-
-  from a and b and Del_Part25 show ?thesis
-    by (metis Del_Part11)
+  from a have 0: "\<exists>n. DelNullableNTsFromElemListInN Rs n a a'" (is "\<exists> n. ?P n")
+    by(simp add: DelNullableNTsFromElemList_def)
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> a a'. DelNullableNTsFromElemListInN Rs n a a' \<Longrightarrow> a -Rs\<rightarrow>\<^sup>* a'"
+    apply (induction n) 
+     apply (metis DelNullableNTsFromElemListInN.simps(1) ProducesInN.simps(1) Produces_def)
+    using Del_Part13 by blast
+  from 1 and 2 show ?thesis by blast
 qed
-
-lemma Del_Part29:
-  assumes a: "l' \<in> DelAllNullableNTsFromElemList l Rs1"
-  assumes b: "r' \<in> DelAllNullableNTsFromElemList r Rs1"
-  shows      "(l'@r') \<in> DelAllNullableNTsFromElemList (l@r) Rs1"
-proof-
-  from a have 0: "(l'@r) \<in> DelAllNullableNTsFromElemList (l@r) Rs1"
-    apply(simp add: DelAllNullableNTsFromElemList_def)
-    by (metis Del_Part26 append.left_neutral)
-  from b and 0 have 1: "(l'@r') \<in> DelAllNullableNTsFromElemList (l'@r) Rs1"
-    apply(simp add: DelAllNullableNTsFromElemList_def)
-    by (metis Del_Part26 append.right_neutral)
-  from 0 and 1 show ?thesis
-    apply(simp add: DelAllNullableNTsFromElemList_def)
-    sledgehammer
-qed
-
-lemma Del_Part27:
+    
+lemma Del_Part15:
   assumes a: "transformDel G1 G2"
-  assumes b: "\<And>m A x. (m \<le> n \<and> x \<noteq> Nil \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> \<exists> A'. A' \<in> DelAllNullableNTsFromElemList A (snd G1) \<and> A' -(snd G2)\<rightarrow>\<^sup>* x)"
+  assumes b: "\<And>A x. (x \<noteq> Nil \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> \<exists> A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes c: "ProducesInN A (snd G1) (n+1) x"
   assumes e: "x \<noteq> Nil"
-  shows      "\<exists> A'. A' \<in> DelAllNullableNTsFromElemList A (snd G1) \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
+  shows      "\<exists> A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
 proof-
   from a have 0: "\<exists> S Rs1 Rs2. 
                   (S, Rs1) = G1
                   \<and> (S, Rs2) = G2
-                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+                  \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
     by (simp add: transformDel_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have f: "G1 = (S, Rs1)" by auto
   from r have g: "G2 = (S, Rs2)" by auto
-  from r have h: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" by auto
+  from r have h: "Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)" by auto
   from c and f have 1: "\<exists> t. ProducesInN t Rs1 n x \<and> A -Rs1\<rightarrow> t"
     (is "\<exists> t. ?P t")
     by auto
@@ -2133,87 +1987,397 @@ proof-
     (is "\<exists> l r N rhs. ?P l r N rhs")
     by(unfold ProductionStep_def Productions_def, auto)
   then obtain l r N rhs where 4: "?P l r N rhs" by blast
-  from 2 and b and e and g and f have 5: "\<exists> t'. t' \<in> DelAllNullableNTsFromElemList t Rs1 \<and> t' -Rs2\<rightarrow>\<^sup>* x"
+  from 2 and b and e and g and f have 5: "\<exists> t'. DelNullableNTsFromElemList Rs1 t t'  \<and> t' -Rs2\<rightarrow>\<^sup>* x"
     (is "\<exists> t'. ?P t'")
     by auto
   then obtain t' where 6: "?P t'" by blast
-  from 6 have 7: "\<exists> l' rr'. t' = l' @ rr' \<and> l' \<in> DelAllNullableNTsFromElemList l Rs1 \<and> rr' \<in> DelAllNullableNTsFromElemList (rhs@r) Rs1"
+  from 6 have 7: "\<exists> l' rr'. t' = l' @ rr' \<and> DelNullableNTsFromElemList Rs1 l l' \<and>  DelNullableNTsFromElemList Rs1 (rhs@r) rr'"
     (is "\<exists> l' rr'. ?P l' rr'")
-    using "4" Del_Part16 by fastforce
+    using "4" Del_Part6 by fastforce
   then obtain l' rr' where 8: "?P l' rr'" by blast
-  from 8 have 9: "\<exists> r' rhs'. rr' = rhs' @ r' \<and> r' \<in> DelAllNullableNTsFromElemList r Rs1 \<and> rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1"
+  from 8 have 9: "\<exists> r' rhs'. rr' = rhs' @ r' \<and> DelNullableNTsFromElemList Rs1 r r' \<and> DelNullableNTsFromElemList Rs1 rhs rhs'"
     (is "\<exists> r' rhs'. ?P r' rhs'")
-    using Del_Part16 by fastforce
+    using Del_Part6 by fastforce
   then obtain r' rhs' where 10: "?P r' rhs'" by blast
   show ?thesis
   proof cases
-    assume x: "rhs = Nil"
-    from x and 4 have 11: "(N, []) \<in> Rs1" by auto
-    from 10 have 12: "rhs' \<in> DelAllNullableNTsFromElemList rhs Rs1" by auto
-    from 12 and x have 13: "rhs' = Nil"
-      apply(unfold DelAllNullableNTsFromElemList_def DelNTFromElemListSet_def)
-      by (smt (verit, del_insts) CollectD append_is_Nil_conv list.discI rtrancl.simps snd_conv)
-    from 13 have 14: "t' = l' @ r'"
+    assume x: "rhs' = Nil"
+    from x have 14: "t' = l' @ r'"
       by (simp add: "10" "8")
-    from 11 have 15: "[NT N] -Rs1\<rightarrow> []"
-      by (simp add: ProductionStep_def Productions_def)
-    from 15 have 16: "[NT N] -Rs1\<rightarrow>\<^sup>* []"
-      by (meson ProducesInN.simps(1) ProducesInN.simps(2) Produces_def)
-    from 11 and 16 have 17: "[] \<in> Language N Rs1"
+    have 16: "rhs -Rs1\<rightarrow>\<^sup>* Nil"
+      using "10" Del_Part14 x by blast
+    have 17: "[NT N] -Rs1\<rightarrow> rhs"
+      using "4" ProductionStep_def Productions_def by fastforce
+    from 17 and 16 have 18: "[NT N] -Rs1\<rightarrow>\<^sup>* Nil"
+      by (meson ProducesInN.simps(2) Produces_def)
+    from 18 have 17: "[] \<in> Language N Rs1"
       apply(unfold Language_def PartialEvalLanguage_def IsTerminalWord_def)
       by simp
-    from 17 have 18: "[] \<in> DelAllNullableNTsFromElemList [NT N] Rs1"
-      apply(unfold DelAllNullableNTsFromElemList_def DelNTFromElemListSet_def)
+    from 17 have 18: "DelSingleNullableNTFromElemList Rs1 [NT N] []"
+      apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def)
       by fastforce
-    from 10 and 
-      
-    
-      
+    from 18 have 19: "DelNullableNTsFromElemList Rs1 [NT N] []"
+      using Del_Part3 by auto
+    from 19 and 8 have 20: "DelNullableNTsFromElemList Rs1 (l@[NT N]) l'"
+      by (metis Del_Part11 append.right_neutral)
+    from 20 and 10 have 21: "DelNullableNTsFromElemList Rs1 (l@[NT N]@r) (l'@r')"
+      using Del_Part11 by fastforce
+    from 21 and 14 and 4 and 6 show ?thesis 
+      using f g by auto
+  next
+    assume y: "rhs' \<noteq> Nil"
+    from 4 have 0: "[NT N] -(snd G1)\<rightarrow> rhs"
+      apply(simp add: ProductionStep_def Productions_def) 
+      using f by fastforce
+    from 10 have 11: "DelNullableNTsFromElemList (snd G1) rhs rhs'" using f by auto
+    from y and 0 and a and 11 and Del_Part7 have 12: "(N, rhs') \<in> Rs2"
+      by (metis r snd_conv)
+    from 8 have 15: "DelNullableNTsFromElemList (snd G1) (l@[NT N]@r) (l'@[NT N]@r)"
+      by (metis Del_Part10 append.left_neutral f snd_conv)
+    from 10 have 16: "DelNullableNTsFromElemList (snd G1) (l'@[NT N]@r) (l'@[NT N]@r')"
+      by (metis DelNullableNTsFromElemListInN.simps(1) DelNullableNTsFromElemList_def Del_Part11 f snd_conv)
+    from 15 and 16 have 17: "DelNullableNTsFromElemList (snd G1) A (l'@[NT N]@r')"
+      using "4" Del_Part2 by blast
+    from 12 have 18: "(l'@[NT N]@r') -Rs2\<rightarrow> t'"
+      using "10" "8" CollectI ProductionStep_def Productions_def by fastforce
+    from 18 and 6 have 19: "(l'@[NT N]@r') -Rs2\<rightarrow>\<^sup>* x"
+      by (meson ProducesInN.simps(2) Produces_def)
+    from 19 and 17 show ?thesis
+      using g by auto
+  qed
+qed
 
-  
- 
-
-(* Double induction yay, do it on the length of t now where A -Rs1\<rightarrow> t and t -Rs1\<rightarrow>^(n) x *)
-lemma Del_Part2:
+lemma Del_Part16:
   assumes a: "transformDel G1 G2"
-  assumes b: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> x \<noteq> Nil \<and> [NT A] -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> [NT A] -(snd G2)\<rightarrow>\<^sup>* x)"
-  assumes c: "ProducesInN [NT A] (snd G1) (n+1) x"
-  assumes d: "IsTerminalWord x"
+  assumes b: "x \<noteq> Nil"
+  assumes c: "A -(snd G1)\<rightarrow>\<^sup>n x"
+  shows      "\<exists>A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<And>A x. x \<noteq> Nil \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> \<exists>A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
+    apply (induction n) 
+    apply (metis DelNullableNTsFromElemListInN.simps(1) DelNullableNTsFromElemList_def ProducesInN.simps(1) Produces_def)
+    by (metis Del_Part15 Suc_eq_plus1)
+  from 0 and b and c show ?thesis
+    by blast
+qed
+
+lemma Del_Part17:
+  assumes a: "DelSingleNullableNTFromElemList Rs [NT A] A'"
+  shows      "A' = Nil"
+proof-
+  from a show ?thesis
+    apply(simp add: DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def)
+    by (simp add: Cons_eq_append_conv)
+qed
+
+lemma Del_Part18:
+  assumes a: "DelNullableNTsFromElemList Rs [NT A] A'"
+  shows      "A' = Nil \<or> A' = [NT A]"
+proof-
+  from a have 0: "\<exists>n. DelNullableNTsFromElemListInN  Rs n [NT A] A'" (is "\<exists> n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)  
+  then obtain n where 1: "?P n" by blast
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    from x and 1 show ?thesis
+      by simp
+  next
+    assume y: "n \<noteq> 0"
+    from y have x: "n > 0" by auto
+    from x and 1 have 2: "\<exists> t. DelSingleNullableNTFromElemList Rs [NT A] t \<and> DelNullableNTsFromElemListInN  Rs (n-1) t A'"
+    (is "\<exists> t. ?P t")
+      by (metis DelNullableNTsFromElemListInN.elims(2) diff_Suc_1 not_gr_zero) 
+    then obtain t where 3: "?P t" by blast
+    from 3 have 4: "t = Nil" 
+      by (meson Del_Part17)
+    from 4 and 3 have 5: "A' = Nil"
+      using DelNullableNTsFromElemList_def Del_Part12 by blast
+    from 5 show ?thesis by auto
+  qed
+qed
+
+
+lemma Del_Part19:
+  assumes a: "Produces [] Rs a"
+  shows      "a = []"
+proof-
+  have 0: "\<And> a. \<not> ProductionStep [] Rs a"
+    apply(unfold ProductionStep_def Productions_def)
+    by auto
+  from a have 1: "\<exists> n. ProducesInN [] Rs n a"(is "\<exists> n. ?P n")
+    by (simp add: Produces_def)
+  then obtain n where 2: "?P n" by blast  
+  from 2 and 0 show ?thesis
+    by(induction n, auto)
+qed
+
+lemma Del_Part20:
+  assumes a: "transformDel G1 G2"
+  assumes c: "Produces [NT A] (snd G1) x"
+  assumes d: "x \<noteq> Nil"
   shows      "[NT A] -(snd G2)\<rightarrow>\<^sup>* x"
 proof-
   from a have 0: "\<exists> S Rs1 Rs2. 
                   (S, Rs1) = G1
                   \<and> (S, Rs2) = G2
-                  \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
+                  \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
     by (simp add: transformDel_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have e: "G1 = (S, Rs1)" by auto
   from r have f: "G2 = (S, Rs2)" by auto
-  from r have g: "Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)" by auto
-  from c and e have 1: "\<exists> rhs. ProducesInN rhs Rs1 n x \<and> [NT A] -Rs1\<rightarrow> rhs"
-    (is "\<exists> rhs. ?P rhs")
-    by auto
-  then obtain rhs where 2: "?P rhs" by blast
-  (* there exists a t' such that A -Rs2\<rightarrow> t' and t' -Rs2\<rightarrow>\<^sup>* x *)
-  (* find that t' by induction on t ig *)
+  from r have g: "Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)" by auto
+  from c have 1: "\<exists> n. ProducesInN [NT A] (snd G1) n x"  (is "\<exists> n. ?P n")
+    by (simp add: Produces_def)
+  then obtain n where 2: "?P n" by blast
+  from 2 and d and a have 3:  "\<exists>A'. DelNullableNTsFromElemList (snd G1) [NT A] A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
+    (is "\<exists> A'. ?P A'")
+    using Del_Part16 by blast
+  then obtain A' where 4: "?P A'" by blast
+  from 4 have 5: "A' = Nil \<or> A' = [NT A]" 
+    by (meson Del_Part18)
+  from 4 and d have 6: "A' \<noteq> Nil" 
+    using Del_Part19 by blast
+  from 5 and 6 and 4 show ?thesis 
+    by blast
+qed
 
-theorem verifyTransformDel2: 
-  assumes a: "transformDel2 G1 G2"
+lemma Del_Part21:
+  assumes a: "[NT N] -Rs\<rightarrow> []"
+  shows      "(N, []) \<in> DelAllNullableNTsFromRules Rs"
+proof-
+  from a have 0: "[NT N] -Rs\<rightarrow>\<^sup>* []"
+    by (meson ProducesInN.simps(1) ProducesInN.simps(2) Produces_def)
+  from a have 1: "DelSingleNullableNTFromElemList Rs [NT N] []"
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def Language_def PartialEvalLanguage_def) 
+    using "0" IsTerminalWord_def by fastforce
+  from 1 have 2: "DelNullableNTsFromElemList Rs [NT N] []"
+    by (simp add: Del_Part3)
+  from 2 show ?thesis
+    apply(unfold DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    by (smt (verit, ccfv_SIG) Del_Part6 Elem.inject(1) Nil_is_append_conv Pair_inject 
+        ProductionStep_def Productions_def append.left_neutral append_self_conv assms list.inject mem_Collect_eq)
+qed
+
+lemma Del_Part23:
+  assumes a: "[NT N] -Rs\<rightarrow> (NT A) # t"
+  assumes b: "[NT A] -Rs\<rightarrow>\<^sup>* []"
+  shows      "(N, t) \<in> DelAllNullableNTsFromRules Rs"
+proof-
+  from a have 0: "(N, (NT A)#t) \<in> Rs"
+    by (smt (verit, ccfv_threshold) Elem.inject(1) Nil_is_append_conv Pair_inject ProductionStep_def
+        Productions_def append.right_neutral append_eq_Cons_conv append_self_conv2 list.inject mem_Collect_eq not_Cons_self2)
+  from b have 1: "DelSingleNullableNTFromElemList Rs ((NT A) # t) t"
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def Language_def PartialEvalLanguage_def)
+    using IsTerminalWord_def by force
+  from 1 have 2: "DelNullableNTsFromElemList Rs ((NT A) # t) t"
+    by (simp add: Del_Part3)
+  from 2 and 0 show ?thesis
+    apply (unfold DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    by auto
+qed
+
+
+lemma Del_Part24:
+  assumes a: "[a] -Rs\<rightarrow>\<^sup>* []"
+  shows      "\<exists> b. a = (NT b)"
+proof-
+  have 0: "\<And> a b. \<not> ([T a] -Rs\<rightarrow> b)"
+    apply (simp add: ProductionStep_def Productions_def) 
+    by (simp add: Cons_eq_append_conv)
+  from a have 1: "\<exists> n. [a] -Rs\<rightarrow>\<^sup>n []" (is "\<exists> n. ?P n")
+    by (simp add: Produces_def)
+  then obtain n where 2: "?P n" by blast
+  from 2 have 3: "n > 0" 
+    using ProducesInN.simps(1) bot_nat_0.not_eq_extremum by blast
+  from 3 have 4: "\<exists> t. [a] -Rs\<rightarrow> t" 
+    by (meson "2" ProducesInN.elims(2) list.discI)
+  from 4 and 0 have 5: "\<not> (\<exists> b. a = (T b))"
+    by blast
+  from 5 show ?thesis 
+    by (meson Elem.exhaust)
+qed
+
+lemma Del_Part25:
+  assumes a: "[a] -Rs\<rightarrow>\<^sup>* []"
+  shows      "DelNullableNTsFromElemList Rs (a # t) t"
+proof-
+  from a have 0: "\<exists> b. a = (NT b)" (is "\<exists> b. ?P b")
+    using Del_Part24 by blast
+  then obtain b where 1: "?P b" by blast
+  from 1 and a have 2: "DelSingleNullableNTFromElemList Rs (a # t) t"
+    apply(unfold DelSingleNullableNTFromElemList_def DelSingleNullableNTFromElemListSet_def Language_def PartialEvalLanguage_def IsTerminalWord_def)
+    by fastforce
+  from 2 show ?thesis
+    by (simp add: Del_Part3)
+qed
+
+lemma Del_Part26:
+  assumes a: "t -Rs\<rightarrow>\<^sup>* []"
+  shows      "DelNullableNTsFromElemList Rs t []"
+proof-
+  have 0: "\<And> a t.  a # t -Rs\<rightarrow>\<^sup>* [] \<Longrightarrow> [a] -Rs\<rightarrow>\<^sup>* [] \<and> t -Rs\<rightarrow>\<^sup>* []"
+    by (metis (no_types, opaque_lifting) Nil_is_append_conv append.left_neutral append_Cons productionParts3)
+  from a show ?thesis
+    apply (induction t) 
+    apply (meson DelNullableNTsFromElemListInN.simps(1) DelNullableNTsFromElemList_def) 
+    using "0" Del_Part2 Del_Part25 by blast
+qed
+
+lemma Del_Part27:
+  assumes a: "[] \<in> Language N Rs"
+  shows      "(N, []) \<in> DelAllNullableNTsFromRules Rs"
+proof-
+  from a have 0: "[NT N] -Rs\<rightarrow>\<^sup>* []"
+    by (simp add: Language_def PartialEvalLanguage_def)
+  from 0 have 1: "\<exists> n. ProducesInN [NT N] Rs n []" (is "\<exists> n. ?P n")
+    by (simp add: Produces_def)
+  then obtain n where 2: "?P n" by blast
+  from 2 have 3: "n > 0" 
+    using ProducesInN.simps(1) bot_nat_0.not_eq_extremum by blast
+  from 3 and 2 have 4: "\<exists> t. ProductionStep [NT N] Rs t \<and> Produces t Rs []" (is "\<exists> t. ?P t")
+    by (meson ProducesInN.elims(2) Produces_def list.discI)
+  then obtain t where 5: "?P t" by blast
+  from 5 have 6: "Produces t Rs []" by auto
+  from 5 have 7: "ProductionStep [NT N] Rs t" by auto
+  from 7 have 8: "(N, t) \<in> Rs" 
+    by (smt (verit, ccfv_threshold) CollectD Elem.inject(1) Pair_inject ProductionStep_def 
+        Productions_def append_eq_Cons_conv append_is_Nil_conv append_self_conv list.inject self_append_conv2)
+  from 6 and 7 show ?thesis
+    apply (unfold DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def, auto)
+    apply (rule_tac x="t" in exI) 
+    using "8" Del_Part26 by blast
+qed
+
+lemma Del_Part28:
+  assumes a: "transformDel G1 G2"
+  assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G2\<rbrakk>"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                (S, Rs1) = G1
+                \<and> (S, Rs2) = G2
+                \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
+        (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformDel_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  show ?thesis
+  proof cases
+    assume x: "x = Nil"
+    from b and x and r have 1: "[] \<in> Language S Rs1"
+      using Lang_def fst_conv snd_conv by fastforce
+    from 1 have 2: "(S, []) \<in> DelAllNullableNTsFromRules Rs1"
+      by (simp add: Del_Part27)
+    from 2 have 3: "(S, []) \<in> RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
+      apply (unfold RemoveAllEpsilonProds_def) 
+      by blast
+    from 3 have 4: "[NT S] -Rs2\<rightarrow> []"
+      by (simp add: ProductionStep_def Productions_def r)
+    from 4 have 5: "[NT S] -Rs2\<rightarrow>\<^sup>* []"
+      by (meson ProducesInN.simps(1) ProducesInN.simps(2) Produces_def)
+    from 5 and x show ?thesis
+      apply (unfold Lang_def Language_def PartialEvalLanguage_def IsTerminalWord_def, auto)
+      using r by blast
+  next
+    assume x: "x \<noteq> Nil"
+    from b have 1: "Produces [NT S] Rs1 x" 
+      apply(unfold Lang_def Language_def PartialEvalLanguage_def IsTerminalWord_def, auto)
+      using r by blast
+    from 1 and x and a have 2: "[NT S] -Rs2\<rightarrow>\<^sup>* x"
+      by (metis Del_Part20 r snd_conv)
+    from 2 show ?thesis
+      using IsTerminalWord_def Lang_def Language_def PartialEvalLanguage_def b r by fastforce
+  qed
+qed
+
+lemma Del_Part29:
+  assumes a: "Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
+  assumes b: "(\<And>A x. A -Rs2\<rightarrow>\<^sup>n x \<Longrightarrow> A -Rs1\<rightarrow>\<^sup>* x)" 
+  assumes c: "ProducesInN A Rs2 (Suc n) x" 
+  shows      "A -Rs1\<rightarrow>\<^sup>* x"
+proof-  
+  from c have 0: "\<exists> t. A -Rs2\<rightarrow> t \<and> t -Rs2\<rightarrow>\<^sup>n x" (is "\<exists> t. ?P t")
+    by simp
+  then obtain t where 1: "?P t" by blast
+  from 1 have 2: "\<exists> l r N rhs. A = l @ [NT N] @ r \<and> t = l @ rhs @ r \<and> (N, rhs) \<in> Rs2" 
+  (is "\<exists> l r N rhs. ?P l r N rhs")
+    apply (unfold ProductionStep_def Productions_def) 
+    by blast
+  then obtain l r N rhs where 3: "?P l r N rhs" by blast
+  from 3 and a have 4: "(N, rhs) \<in> DelAllNullableNTsFromRules Rs1"
+    apply (unfold RemoveAllEpsilonProds_def)
+    by blast
+  from 4 have 5: "\<exists> rhs'. (N, rhs') \<in> Rs1 \<and> DelNullableNTsFromElemList Rs1 rhs' rhs"
+    (is "\<exists> rhs'. ?P rhs'")
+    by (unfold DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def, auto)
+  then obtain rhs' where 6: "?P rhs'" by blast
+  from 6 have 7: "rhs' -Rs1\<rightarrow>\<^sup>* rhs" 
+    by (simp add: Del_Part14)
+  from 6 have 8: "[NT N] -Rs1\<rightarrow> rhs'"
+    using ProductionStep_def Productions_def by fastforce
+  from 8 and 7 have 9: "[NT N] -Rs1\<rightarrow>\<^sup>* rhs"
+    by (meson ProducesInN.simps(2) Produces_def)
+  from 9 and 3 have 10: "A -Rs1\<rightarrow>\<^sup>* t" 
+    using productionAppend3 by blast
+  from 1 and b have 11: "t -Rs1\<rightarrow>\<^sup>* x"
+    by blast
+  from 10 and 11 show ?thesis
+    using transitiveProductions by auto
+qed
+    
+lemma Del_Part30:
+  assumes a: "transformDel G1 G2"
+  assumes b: "A -(snd G2)\<rightarrow>\<^sup>n x"
+  shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
+proof-
+  from a have 0: "\<exists> S Rs1 Rs2. 
+                (S, Rs1) = G1
+                \<and> (S, Rs2) = G2
+                \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
+        (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformDel_def)
+  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
+  from b and 1 have 2: "A -Rs2\<rightarrow>\<^sup>n x" by auto
+  have 3: "\<And> A x. A -Rs2\<rightarrow>\<^sup>n x \<Longrightarrow> A -Rs1\<rightarrow>\<^sup>* x"
+    apply (induction n) 
+    apply (metis ProducesInN.simps(1) Produces_def)
+    by (metis "1" Del_Part29)
+  from 2 and 3 show ?thesis
+    using "1" by fastforce
+qed    
+
+
+lemma Del_Part31:
+  assumes a: "transformDel G1 G2"
+  assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
+  shows      "x \<in> \<lbrakk>G1\<rbrakk>"
+proof-
+  from b have 0: "[(NT (fst G2))] -(snd G2)\<rightarrow>\<^sup>* x"
+    by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+  from 0 have 1: "\<exists> n. [(NT (fst G2))] -(snd G2)\<rightarrow>\<^sup>n x" (is "\<exists> n. ?P n")
+    by (simp add: Produces_def)
+  then obtain n where 2: "?P n" by blast
+  from 2 have 3: "[(NT (fst G2))] -(snd G1)\<rightarrow>\<^sup>* x"
+    using Del_Part30 a by blast
+  from a have 4: "fst G1 = fst G2" 
+    by (unfold transformDel_def, auto)
+  from b have 5: "IsTerminalWord x" 
+    by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+  from 4 and 3 and 5 show ?thesis
+    apply (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
+    by (metis prod.collapse)
+qed
+
+theorem verifyTransformDel: 
+  assumes a: "transformDel G1 G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
-  from a have 0:"\<exists> S Rs1 Rs2.
-                 (S, Rs1) = G1
-                 \<and> (S, Rs2) = G2
-                 \<and> Rs2 = RemoveAllEpsilonProds S (Rs1 \<union> DelAllNullableNTsFromRules Rs1)"
-                 (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-  by (unfold transformDel2_def)
-  then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
-  from 1 have 2: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (meson Del2_Part1)
-  from 1 have 3: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (meson Del2_Part2)
-  from 2 and 3 show ?thesis
+  from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
+    by (simp add: Del_Part28)
+  from a have 1: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
+    by (simp add: Del_Part31)
+  from 0 and 1 show ?thesis
     by blast
 qed
 
@@ -2326,25 +2490,25 @@ qed
     
 lemma UnitFinit_part5:
   assumes a: "finite Rs1"
-  shows      "finite (NewUnitTransRuleSet2 N Rs1)"
+  shows      "finite (NewUnitTransRuleSet N Rs1)"
 proof-
   from a and UnitFinit_part3 have 0: "finite (NTToNTProductionSet Rs1)"
     by (auto)
   from 0 and a and UnitFinit_part4 have 1: "finite {(A, Rhs). \<exists>B. (B, Rhs) \<in> Rs1 \<and> (A, B) \<in> (NTToNTProductionSet Rs1)}"
     by (smt (verit, del_insts) Collect_cong Pair_inject case_prodE case_prodI2)
-  have 2: "NewUnitTransRuleSet2 N Rs1 \<subseteq> {(A, Rhs). \<exists>B. (B, Rhs) \<in> Rs1 \<and> (A, B) \<in> (NTToNTProductionSet Rs1)}"
-    by (smt (verit, best) NewUnitTransRuleSet2_def Pair_inject case_prodI2 mem_Collect_eq subsetI)
+  have 2: "NewUnitTransRuleSet N Rs1 \<subseteq> {(A, Rhs). \<exists>B. (B, Rhs) \<in> Rs1 \<and> (A, B) \<in> (NTToNTProductionSet Rs1)}"
+    by (smt (verit, best) NewUnitTransRuleSet_def Pair_inject case_prodI2 mem_Collect_eq subsetI)
   from 1 and 2 show ?thesis
     using finite_subset by blast
 qed
   
 lemma UnitFinite:
-  assumes a: "transformUnitSingle2 G1 N G2"
+  assumes a: "transformUnitSingle G1 N G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   from a and b and UnitFinit_part5 show ?thesis
-    by (metis finiteCFG_def finite_Diff finite_UnI snd_conv transformUnitSingle2_def)
+    by (metis finiteCFG_def finite_Diff finite_UnI snd_conv transformUnitSingle_def)
 qed
 
 lemma listFinite:
