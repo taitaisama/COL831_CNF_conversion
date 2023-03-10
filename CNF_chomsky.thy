@@ -2516,95 +2516,79 @@ lemma listFinite:
   shows      "finite (set L)"
   by auto
 
-definition RuleRhsSubset :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
-  where "RuleRhsSubset R1 R2 \<equiv> set (snd R1) \<subseteq> set (snd R2)" 
+definition RuleElementListSubset :: "('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "RuleElementListSubset E1 E2 \<equiv> set E1 \<subseteq> set E2" 
 
-definition RuleRhsSize :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
-  where "RuleRhsSize R1 R2 \<equiv> size (snd R1) \<le> size (snd R2)" 
-
-definition RuleLhsSame :: "('n, 't) Rule \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
-  where "RuleLhsSame R1 R2 \<equiv> fst R1 = fst R2" 
+definition RuleElementListSize :: "('n, 't) Elem list \<Rightarrow> ('n, 't) Elem list \<Rightarrow> bool"
+  where "RuleElementListSize E1 E2 \<equiv> size E1 \<le> size E2" 
 
 lemma DelFinite_Part1:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H"
-  shows      "(RuleRhsSubset A B)"
+  assumes a: "(E1, E2) \<in> DelSingleNullableNTFromElemListSet Rs"
+  shows      "RuleElementListSubset E1 E2"
 proof-
-  have 0: "\<And> l r a. (set (l @ r)) \<subseteq> (set (l @ a # r))"
-    by (simp add: subsetI)
-  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
-    by simp
-  then obtain S l r where 2: "?P S l r" by blast
-  from 2 and a show ?thesis
-    by (unfold RuleRhsSubset_def, auto)
+  from a show ?thesis
+    apply (simp add: DelSingleNullableNTFromElemListSet_def RuleElementListSubset_def)
+    by force
 qed
 
 lemma DelFinite_Part2:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H"
-  shows      "(RuleRhsSize A B)"
+  assumes a: "DelSingleNullableNTFromElemList Rs E1 E2"
+  shows      "RuleElementListSubset E2 E1"
 proof-
-  have 0: "\<And> l r a. (size (l @ r)) \<le> (size (l @ a # r))"
-    by (simp add: subsetI)
-  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
-    by simp
-  then obtain S l r where 2: "?P S l r" by blast
-  from 2 and a show ?thesis
-    by (unfold RuleRhsSize_def, auto)
+  from a and DelFinite_Part1 show ?thesis
+    by (simp add: DelSingleNullableNTFromElemList_def, auto)
 qed
 
 lemma DelFinite_Part3:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H\<^sup>+"
-  shows      "(RuleRhsSubset A B)"
-
+  assumes a: "DelNullableNTsFromElemList Rs E1 E2"
+  shows      "RuleElementListSubset E2 E1"
 proof-
-  from a and DelFinite_Part1 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleRhsSubset A) y"
-    by (smt (verit, del_insts) mem_Collect_eq)
-  from 1 have 2: "\<And>y z. (RuleRhsSubset y) z \<Longrightarrow> (RuleRhsSubset A) y \<Longrightarrow> (RuleRhsSubset A) z"
-    by (simp add: RuleRhsSubset_def)
-  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleRhsSubset A) y \<Longrightarrow> (RuleRhsSubset A) z"
-    by (smt (verit, del_insts) DelFinite_Part1 mem_Collect_eq)
-  from 1 and 3 and trancl_induct and b show ?thesis
-    by (smt (verit, ccfv_SIG))
-qed  
-
-
-lemma DelFinite_Part4:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H\<^sup>+"
-  shows      "(RuleRhsSize A B)"
-
-proof-
-  from a and DelFinite_Part2 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleRhsSize A) y"
-    by (smt (verit, del_insts) mem_Collect_eq)
-  from 1 have 2: "\<And>y z. (RuleRhsSize y) z \<Longrightarrow> (RuleRhsSize A) y \<Longrightarrow> (RuleRhsSize A) z"
-    by (simp add: RuleRhsSize_def)
-  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleRhsSize A) y \<Longrightarrow> (RuleRhsSize A) z"
-    by (smt (verit, del_insts) DelFinite_Part2 mem_Collect_eq)
-  from 1 and 3 and trancl_induct and b show ?thesis
-    by (smt (verit, ccfv_SIG))
-qed  
-
-lemma DelFinite_Part5:
-  fixes      Rhs :: "('n, 't) Elem list"
-  fixes      N :: "'n"
-  fixes      S :: "'n"
-  fixes      NR :: "('n, 't) Rule"
-  assumes a: "(NR, (S, Rhs)) \<in> DelNTFromRuleSet N"
-  shows      "NR = (S, Rhs) \<or> (NR, (S, Rhs)) \<in> {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+"
-proof-
-  have 0: "\<And> a b L. (a, b) \<in> L\<^sup>* \<Longrightarrow> (a = b) \<or> (a, b) \<in> L\<^sup>+"
-    by (metis rtranclD)
-  from 0 and a show ?thesis
-    by (unfold DelNTFromRuleSet_def, smt (verit, best) "0")
+  from a have 0: "\<exists> n. DelNullableNTsFromElemListInN Rs n E1 E2" (is "\<exists> n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> E1 E2. DelNullableNTsFromElemListInN Rs n E1 E2 \<Longrightarrow> RuleElementListSubset E2 E1"
+    apply (induction n, auto) 
+    using RuleElementListSubset_def apply auto[1]
+    using DelFinite_Part2 
+    by (metis RuleElementListSubset_def order_trans)
+  from 2 and 1 show ?thesis
+    by auto
 qed
 
-lemma subsetListFinite:
+lemma DelFinite_Part4:
+  assumes a: "(E1, E2) \<in> DelSingleNullableNTFromElemListSet Rs"
+  shows      "RuleElementListSize E1 E2"
+proof-
+  from a show ?thesis
+    apply (simp add: DelSingleNullableNTFromElemListSet_def RuleElementListSize_def)
+    by force
+qed
+
+lemma DelFinite_Part5:
+  assumes a: "DelSingleNullableNTFromElemList Rs E1 E2"
+  shows      "RuleElementListSize E2 E1"
+proof-
+  from a and DelFinite_Part4 show ?thesis
+    by (simp add: DelSingleNullableNTFromElemList_def, auto)
+qed
+
+lemma DelFinite_Part6:
+  assumes a: "DelNullableNTsFromElemList Rs E1 E2"
+  shows      "RuleElementListSize E2 E1"
+proof-
+  from a have 0: "\<exists> n. DelNullableNTsFromElemListInN Rs n E1 E2" (is "\<exists> n. ?P n")
+    by (simp add: DelNullableNTsFromElemList_def)
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> E1 E2. DelNullableNTsFromElemListInN Rs n E1 E2 \<Longrightarrow> RuleElementListSize E2 E1"
+    apply (induction n, auto) 
+    using RuleElementListSize_def apply auto[1]
+    using DelFinite_Part5
+    by (metis RuleElementListSize_def order_trans)
+  from 2 and 1 show ?thesis
+    by auto
+qed
+
+lemma DelFinite_Part7:
   fixes      S :: "'a set"
   fixes      H :: "'a list set"
   fixes      n :: "nat"
@@ -2612,173 +2596,111 @@ lemma subsetListFinite:
   assumes b: "H = {L | L. (set L) \<subseteq> S \<and> (size L) \<le> n}"
   shows      "finite H"
   using a and b apply-
-  apply(induction n)
-   apply auto[1]
+  apply (induction n)
+  apply auto[1]
   using finite_lists_length_le by force
 
-lemma DelFinite_Part6:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H"
-  shows      "(RuleLhsSame A B)"
-proof-
-  from a and b have 1: "\<exists> S l r. A = (S, l @ r) \<and> B = (S, l @ NT N # r)" (is "\<exists> S l r. ?P S l r")
-    by simp
-  then obtain S l r where 2: "?P S l r" by blast
-  from 2 and a show ?thesis
-    by (unfold RuleLhsSame_def, auto)
-qed
-
-
-lemma DelFinite_Part7:
-  fixes      H :: "(('n, 't) Rule \<times> ('n, 't) Rule) set" 
-  assumes a: "H = {((S, l @ r), S, l @ NT N # r) | S l r. True}"
-  assumes b: "(A, B) \<in> H\<^sup>+"
-  shows      "(RuleLhsSame A B)"
-
-proof-
-  from a and DelFinite_Part6 have 1: "\<And>y. (A, y) \<in> H \<Longrightarrow> (RuleLhsSame A) y"
-    by (smt (verit, del_insts) mem_Collect_eq)
-  from 1 have 2: "\<And>y z. (RuleLhsSame y) z \<Longrightarrow> (RuleLhsSame A) y \<Longrightarrow> (RuleLhsSame A) z"
-    by (simp add: RuleLhsSame_def)
-  from a and 2 have 3: "\<And>y z. (y, z) \<in> H \<Longrightarrow> (RuleLhsSame A) y \<Longrightarrow> (RuleLhsSame A) z"
-    by (smt (verit, del_insts) DelFinite_Part6 mem_Collect_eq)
-  from 1 and 3 and trancl_induct and b show ?thesis
-    by (smt (verit, ccfv_SIG))
-qed  
-  
-  
-lemma DelFinite_Part8:
-  fixes      Rhs :: "('n, 't) Elem list"
-  fixes      N :: "'n"
-  fixes      S :: "'n"
-  assumes a: "H = {NR | NR. (NR, (S, Rhs)) \<in> DelNTFromRuleSet N}"
+lemma DelFinite_Part8: 
+  assumes a: "H = {E2. DelNullableNTsFromElemList Rs E1 E2}"
   shows      "finite H"
 proof-
-  from a and DelFinite_Part5 have 0: "\<And> R. R \<in> H \<Longrightarrow> R = (S, Rhs) \<or> (R, (S, Rhs)) \<in> {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+"
-    by (smt (verit, del_insts) Collect_cong mem_Collect_eq)
-  have 1: "\<And> R. (R, (S, Rhs)) \<in> 
-          {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+
-          \<Longrightarrow> (RuleRhsSubset R) (S, Rhs)"
-    by (simp add: DelFinite_Part3)
-  have 2: "\<And> R. (R, (S, Rhs)) \<in> 
-          {((S, l @ r), S, l @ NT N # r) | S l r. True}\<^sup>+
-          \<Longrightarrow> (RuleRhsSize R) (S, Rhs)"
-    by (simp add: DelFinite_Part4)
-  from 1 and a and 0 have 3: "\<And> R. R \<in> H \<Longrightarrow> (RuleRhsSubset R) (S, Rhs)"
-    apply(unfold DelNTFromRuleSet_def)
-    using RuleRhsSubset_def by blast
-  from 2 and a and 0 have 4: "\<And> R. R \<in> H \<Longrightarrow> (RuleRhsSize R) (S, Rhs)"
-    apply(unfold DelNTFromRuleSet_def)
-    using RuleRhsSize_def by blast
-  from 3 have 5: "H \<subseteq> {R | R. (RuleRhsSubset R) (S, Rhs)}"
-    by blast
-  from 4 have 6: "H \<subseteq> {R | R. (RuleRhsSize R) (S, Rhs)}"
-    by blast
-  from listFinite have 7: "finite (set Rhs)"
-    by simp
-  have 8: "{(set Rhs1) | Rhs1. (RuleRhsSubset (S, Rhs1)) (S, Rhs)} \<subseteq> (Pow (set Rhs))"
-    by(unfold RuleRhsSubset_def Pow_def, auto)
-  from 8 and 5 have 9: "\<And> R. R \<in> H \<Longrightarrow> (set (snd R)) \<in> {(set Rhs1) | Rhs1. (RuleRhsSubset (S, Rhs1)) (S, Rhs)}"
-    by (metis (mono_tags, lifting) "3" CollectI RuleRhsSubset_def snd_conv)
-  from 9 and 8 have 10: "H \<subseteq> {S | S. (set (snd S)) \<subseteq> (set Rhs)}"
-    by blast
-  from 6 have 11 : "H \<subseteq> {S | S. (size (snd S)) \<le> (size Rhs)}"
-    by (simp add: RuleRhsSize_def)
-  from 10 and 11 have 12: "H \<subseteq> {S | S. (size (snd S)) \<le> (size Rhs) \<and> (set (snd S)) \<subseteq> (set Rhs)}"
+  from a have 0: "H \<subseteq> {E. RuleElementListSize E E1 \<and> RuleElementListSubset E E1}"
+    by (simp add: Collect_mono_iff DelFinite_Part3 DelFinite_Part6)
+  from 0 have 1: "H \<subseteq> {E. size E \<le> size E1 \<and> set E \<subseteq> set E1}"
+    by (simp add: RuleElementListSize_def RuleElementListSubset_def)
+  have 2: "finite (set E1)"
     by auto
-  from a and 0 have 13: "\<And> R. R \<in> H \<Longrightarrow> (fst R) = S"
-    by (smt (verit, best) DelFinite_Part5 DelFinite_Part7 RuleLhsSame_def fstI mem_Collect_eq)
-  from 13 and 12 have 14: "H \<subseteq> {(S, R) | R. (size R) \<le> (size Rhs) \<and> (set R) \<subseteq> (set Rhs)}"
-    by auto
-  have 15: "\<exists> n. size Rhs \<le> n" (is "\<exists> n. ?P n")
-    by blast
-  then obtain n where 16: "?P n" by blast
-  from 16 and 14 have 17: "H \<subseteq> {(S, R) | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
-    by auto
-  from 17 and subsetListFinite and 7 have 18: "finite {R | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
-    by(rule_tac S="set Rhs" in subsetListFinite, auto)
-  have 19: "{(S, R) | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)} = image (\<lambda> R. (S, R)) {R | R. (size R) \<le> n \<and> (set R) \<subseteq> (set Rhs)}"
-    by (auto)
-  from 19 and 18 and 17 and finiteImage show ?thesis
-    by (simp add: finite_subset)
+  from 2 and 1 and DelFinite_Part7 show ?thesis
+    by (metis (no_types, lifting) mem_Collect_eq rev_finite_subset subsetI)
 qed
 
-lemma DelFinite_Part9:
-  fixes      Rs1 :: "('n, 't) RuleSet"
-  fixes      N :: "'n"
-  assumes a: "finite Rs1"
-  shows      "finite (DelNTFromRule N Rs1)"
-proof-
-  from DelFinite_Part8 have 0: "\<And> R. finite {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}"
-    apply(rule_tac N="N" and S="fst R" and Rhs="snd R" in DelFinite_Part8)
-    by force
-  have 1: "(DelNTFromRule N Rs1) \<subseteq> \<Union> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}"
-    by(unfold DelNTFromRule_def, auto)
-  from 0 have 2: "\<And> R. R \<in> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}} \<Longrightarrow> finite R"
-    by blast
-  have 3: "{Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}
-           = image (\<lambda> R. {NR |NR. (NR, R) \<in> DelNTFromRuleSet N}) Rs1"
-    by blast
-  from a and 3 and finiteImage have 4: "finite {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}}"
-    by auto
-  from 4 and 2 and finite_Union have 5: "finite (\<Union> {Rs | R Rs. R \<in> Rs1 \<and> Rs = {NR | NR. (NR, R) \<in> DelNTFromRuleSet N}})"
-    by blast
-  from 5 and 1 show ?thesis
-    using finite_subset by auto
-qed
+definition DelAllNullableNTsFromRule :: "('n, 't) RuleSet \<Rightarrow> ('n, 't) Rule \<Rightarrow> ('n, 't) RuleSet"
+  where "DelAllNullableNTsFromRule X R = { NR | NR. DelNullableNTsFromRule X R NR}"
 
-lemma DelFinite_Part10:
-  fixes      Rs1 :: "('n, 't) RuleSet"
-  fixes      N :: "'n"
-  assumes a: "[] \<in> Language N Rs1"
-  shows      "\<exists> R. R \<in> Rs1 \<and> ProducingNT R = N"
+lemma DelFinite_Part9: 
+  assumes a: "finite Rs"
+  shows      "finite (DelAllNullableNTsFromRule Rs R)"
 proof-
-  from a have 0: "\<exists> n. [NT N] -Rs1\<rightarrow>\<^sup>n []" (is "\<exists> n. ?P n")
-    by (simp add: Language_def Produces_def)
-  then obtain n where 1: "?P n" by blast
-  from 1 show ?thesis
-    by(induction n, auto)
+  have 0: "\<And> S. S \<in> DelAllNullableNTsFromRule Rs R \<Longrightarrow> (snd S) \<in> {E2. DelNullableNTsFromElemList Rs (snd R) E2}"
+    apply (unfold DelAllNullableNTsFromRule_def DelNullableNTsFromRule_def)
+    by fastforce
+  have 1: "\<And> S. S \<in> DelAllNullableNTsFromRule Rs R \<Longrightarrow> (fst S) = (fst R)"
+    apply (unfold DelAllNullableNTsFromRule_def DelNullableNTsFromRule_def)
+    by fastforce
+  from 0 and 1 have 2: " DelAllNullableNTsFromRule Rs R \<subseteq> CartesianProduct {fst R} {E2. DelNullableNTsFromElemList Rs (snd R) E2}"
+    by (unfold CartesianProduct_def, auto)
+  have 3: "finite {E2. DelNullableNTsFromElemList Rs (snd R) E2}"
+    by (simp add: DelFinite_Part8)
+  from 2 and 3 show ?thesis
+    by (meson CartesianFinite finite.emptyI finite.insertI finite_subset)
 qed
-
-lemma DelFinite_Part11:
-  fixes      Rs1 :: "('n, 't) RuleSet"
-  assumes a: "finite Rs1"
-  shows      "finite (DelAllNullableNTsFromRules Rs1)"
+    
+lemma DelFinite_Part10: 
+  assumes a: "finite Rs"
+  shows      "finite (DelAllNullableNTsFromRules Rs)"
 proof-
-  from DelFinite_Part10 have 0: "\<And> N. [] \<in> Language N Rs1 \<Longrightarrow> \<exists> R. R \<in> Rs1 \<and> ProducingNT R = N"
-    by (auto)
-  from 0 have 1: "{N | N. [] \<in> Language N Rs1} \<subseteq> image ProducingNT Rs1"
-    by auto
-  from 1 have 2: "finite {N | N. [] \<in> Language N Rs1}"
-    by (metis assms finite_surj)
-  from 2 and finiteImage have 3: "{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}
-                                 = image (\<lambda> N. (DelNTFromRule N Rs1)) {N | N. [] \<in> Language N Rs1}"
-    by(auto)
-  from 3 and 2 and finiteImage have 4: "finite {(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}"
-    by auto
-  have 5: "DelAllNullableNTsFromRules Rs1 \<subseteq> \<Union>{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1}"
-    by(unfold DelAllNullableNTsFromRules_def, auto)
-  from a and 4 and DelFinite_Part9 and finite_Union have 6: "finite (\<Union>{(DelNTFromRule N Rs1) | N. [] \<in> Language N Rs1})"
-    apply(rule_tac A="{DelNTFromRule N Rs1 |N. [] \<in> \<lbrakk>N\<rbrakk>\<^sub>Rs1}" in finite_Union, auto)
-    by (simp add: DelFinite_Part9)
-  from 6 and 5 show ?thesis
+  have 0: "DelAllNullableNTsFromRules Rs \<subseteq> \<Union> {DelAllNullableNTsFromRule Rs R | R. R \<in> Rs}"
+    apply (simp add: DelAllNullableNTsFromRules_def DelAllNullableNTsFromRule_def)
+    by blast
+  have 1: "finite (\<Union> {DelAllNullableNTsFromRule Rs R | R. R \<in> Rs})"
+    using a and DelFinite_Part9  
+    by (metis Collect_mem_eq finite_UN_I setcompr_eq_image)
+  from 0 and 1 show ?thesis
     using finite_subset by blast
 qed
 
 lemma DelFinite:
-  assumes a: "transformDel2 G1 G2"
+  assumes a: "transformDel G1 G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   have 0: "\<And> R S. RemoveAllEpsilonProds S R \<subseteq> R"
     by(unfold RemoveAllEpsilonProds_def, auto)
   from a and b and 0 show ?thesis
-  apply (unfold transformDel2_def finiteCFG_def)
-  using DelFinite_Part11 infinite_super by fastforce
+    using DelFinite_Part10 apply (unfold transformDel_def finiteCFG_def)
+    using finite_subset by fastforce
 qed
 
 (* Measure for Term to prove that it terminates *)
+
+lemma foldInsert:
+  fixes      f :: "'a \<Rightarrow> 'b \<Rightarrow> 'b"
+  fixes      E :: "'a"
+  fixes      Z :: "'b"
+  assumes a: "comp_fun_commute_on (insert E S) f"
+  assumes b: "finite S"
+  assumes c: "E \<notin> S"
+  shows      "Finite_Set.fold f Z (insert E S) = f E (Finite_Set.fold f Z S)"
+proof-
+  from b have 0: "finite (insert E S)"
+    by blast
+  have 1: "S \<subseteq> (insert E S)"
+    by auto
+  from 0 and 1 and b and a and c and comp_fun_commute_on.fold_insert show ?thesis
+    apply (rule_tac S="(insert E S)" and f="f" and A="S" and x="E" and z="Z" in comp_fun_commute_on.fold_insert)
+    apply meson
+    apply force
+    apply blast
+    by blast
+qed
+
+lemma foldRemove:
+  fixes      f :: "'a \<Rightarrow> 'b \<Rightarrow> 'b"
+  fixes      E :: "'a"
+  fixes      Z :: "'b"
+  assumes a: "comp_fun_commute_on S f"
+  assumes b: "finite S"
+  assumes c: "E \<in> S"
+  shows      "Finite_Set.fold f Z S = f E (Finite_Set.fold f Z (S- {E}))"
+proof-
+  have 0: "E \<notin> S - {E}"
+    by auto
+  from c have 1: "S = insert E (S - {E})"
+    by auto
+  from 0 and 1 and a and b show ?thesis
+    using foldInsert 
+    by (metis finite_Diff)
+qed
 
 fun CountTerminals :: "('n, 't) Elem list \<Rightarrow> nat"
   where "CountTerminals [] = 0" | 
@@ -2818,55 +2740,13 @@ proof-
     by auto
 qed
 
-(*
-lemma foldInsert:
-  fixes      f :: "'a \<Rightarrow> 'b \<Rightarrow> 'b"
-  fixes      E :: "'a"
-  fixes      Z :: "'b"
-  assumes a: "comp_fun_commute_on (insert E S) f"
-  assumes b: "finite S"
-  assumes c: "E \<notin> S"
-  shows      "Finite_Set.fold f Z (insert E S) = f E (Finite_Set.fold f Z S)"
-proof-
-  from b have 0: "finite (insert E S)"
-    by blast
-  have 1: "S \<subseteq> (insert E S)"
-    by auto
-  from 0 and 1 and b and a and c and comp_fun_commute_on.fold_insert show ?thesis
-    apply (rule_tac S="(insert E S)" and f="f" and A="S" and x="E" and z="Z" in comp_fun_commute_on.fold_insert)
-    apply meson
-    apply force
-    apply blast
-    by blast
-qed
-*)
 
 lemma TermTerminate_Part1:
-  assumes a: "R1 = (S1, L @ T a # R)"
-  assumes b: "R2 = (S1, L @ NT N # R)"
-  assumes c: "R3 = (N, [T a])"
-  assumes d: "(L @ R \<noteq> [])"
-  assumes e: "G1 = (S, Rs1)"
-  assumes f: "G2 = (S, Rs2)"
-  assumes g: "R1 \<in> Rs1"
-  assumes h: "finite Rs1"
-  assumes i: "finite Rs2"
-  assumes j: "Rs2 = {R2, R3} \<union> (Rs1 - {R1})"
-  assumes k: "NT N \<notin> NonTerminals G1"
+  assumes x: "transformTermSingle G1 N G2"
+  assumes y: "finiteCFG G1"
   shows      "TermMeasure G1 > TermMeasure G2"
 proof-
-  from c have "CountNonSingleTerminals R3 = 0" by simp
-  from a and b and d have "CountNonSingleTerminals R1 = CountNonSingleTerminals R2 + 1"
-    by (meson CountProperty2)
-  
-theorem TermTerminate:
-  assumes a: "transformTermSingle G1 N G2"
-  assumes b: "finiteCFG G1"
-  shows      "TermMeasure G1 > TermMeasure G2"
-proof-
-  from a and b and TermFinite have 0: "finiteCFG G2" 
-    by metis
-  from a have 1: "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+  from x have 1: "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
                     (S, Rs1) = G1 
                     \<and> R1 = (S1, L @ (T(a) # R))
                     \<and> R2 = (S1, L @ (NT(N) # R))
@@ -2878,9 +2758,561 @@ proof-
                     \<and> NT(N) \<notin> NonTerminals(G1)" 
                   (is "\<exists>S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
     by (simp add: transformTermSingle_def)
-  from 1 obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where 2: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
-  from 2 have 3: "CountNonSingleTerminals R3 = 0"
-    by simp
-  from 2 have 4: "CountNonSingleTerminals R1 = CountNonSingleTerminals R2 + 1"
+  from 1 obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
+  from r have a: "R1 = (S1, L @ T a # R)" by auto
+  from r have b: "R2 = (S1, L @ NT N # R)" by auto
+  from r have c: "R3 = (N, [T a])" by auto
+  from r have d: "(L @ R \<noteq> [])" by auto
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have i: "R1 \<in> Rs1" by auto
+  from r have j: "Rs2 = {R2, R3} \<union> (Rs1 - {R1})" by auto
+  from r have k: "NT N \<notin> NonTerminals G1" by auto
+  from c have 2: "CountNonSingleTerminals R3 = 0" by simp
+  from a and b and d have 3: "CountNonSingleTerminals R1 = CountNonSingleTerminals R2 + 1"
     by (meson CountProperty2)
-end
+  from y and e have 0: "finite Rs1" by (simp add: finiteCFG_def)
+  have 4: "\<And> Rs. comp_fun_commute_on Rs TermFold "
+    apply (unfold comp_fun_commute_on_def TermFold_def) 
+    by fastforce
+  from 4 and i and 0 have 5: "TermFold R1 (TermRuleMeasure (Rs1 - {R1})) = TermRuleMeasure Rs1"
+    apply (unfold TermRuleMeasure_def)
+    by (simp add: "4" foldRemove)
+  from 5 have 6: "CountNonSingleTerminals R1 + (TermRuleMeasure (Rs1 - {R1})) = TermRuleMeasure Rs1"
+    by (unfold TermFold_def, auto)
+  from b and k have 7: "R2 \<notin> Rs1"
+    apply (unfold NonTerminals_def NTInRule_def)
+    using e by fastforce
+  from c and k have 8: "R3 \<notin> Rs1"
+    apply (unfold NonTerminals_def NTInRule_def)
+    using e  by auto
+  from 7 have 9: "R2 \<notin> (Rs1 - {R1})"
+    by auto
+  from 9 and 0 and 4 have 10: "TermFold R2 (TermRuleMeasure (Rs1 - {R1})) = TermRuleMeasure ({R2} \<union> (Rs1 - {R1}))"
+    by (metis TermRuleMeasure_def finite_Diff  foldInsert insert_is_Un)
+  from 10 have 11: "CountNonSingleTerminals R2 + (TermRuleMeasure (Rs1 - {R1})) = TermRuleMeasure ({R2} \<union> (Rs1 - {R1}))"
+    by (simp add: TermFold_def)
+  from 8 have 12: "R3 \<notin> {R2} \<union> (Rs1 - {R1})"
+    by (smt (verit, best) Un_iff add_is_1 append_self_conv2 empty_iff insert_Diff
+        insert_iff length_0_conv length_Cons length_append list.inject r snd_conv)  
+  from 12 and 4 have 13: "TermFold R3 (TermRuleMeasure ({R2} \<union> (Rs1 - {R1}))) = TermRuleMeasure ({R2, R3} \<union> (Rs1 - {R1}))"
+    by (smt (verit) "0" TermRuleMeasure_def Un_insert_left finite_Diff finite_insert foldInsert insert_commute sup_bot_left)
+  from 13 and 12 have 14: "CountNonSingleTerminals R3 + CountNonSingleTerminals R2 + (TermRuleMeasure (Rs1 - {R1})) = TermRuleMeasure (Rs2)"
+    by (simp add: "11" "2" TermFold_def j)
+  from 14 and 6 and 2 and 3 show ?thesis
+    by (metis Suc_eq_plus1 TermMeasure_def add_Suc add_cancel_left_left e f less_add_same_cancel2 less_numeral_extra(1) snd_eqD)
+qed
+
+lemma TermTerminate_Part2:
+  assumes a: "\<And> R. R \<in> Rs \<Longrightarrow> CountNonSingleTerminals R = 0"
+  assumes b: "finite Rs"
+  shows      "fold_graph TermFold 0 Rs 0"
+proof-
+  have 0: "\<And> Rs. comp_fun_commute_on Rs TermFold "
+    apply (unfold comp_fun_commute_on_def TermFold_def) 
+    by fastforce
+  from 0 have 1: "comp_fun_commute_on Rs TermFold" by auto
+  have 2: "finite Rs \<Longrightarrow> (\<And> R. R \<in> Rs \<Longrightarrow> CountNonSingleTerminals R = 0) \<Longrightarrow> fold_graph TermFold 0 Rs 0"
+    apply (induct rule: finite_induct) 
+    using fold_graph.emptyI apply fastforce
+    by (metis TermFold_def add.right_neutral fold_graph.insertI insertCI)
+  from 2 show ?thesis
+    using a b by blast
+qed
+
+lemma TermTerminate_Part3:
+  assumes a: "\<And> R. R \<in> Rs \<Longrightarrow> CountNonSingleTerminals R = 0"
+  assumes b: "finite Rs"
+  shows      "TermRuleMeasure Rs = 0"
+proof-
+  from a and b have 0: "fold_graph TermFold 0 Rs 0"
+    using TermTerminate_Part2 by blast
+  from b and 0 have 1: "\<And> x. fold_graph TermFold 0 Rs x \<Longrightarrow> x = 0"
+    by (smt (verit) TermFold_def a empty_iff fold_graph_closed_lemma insert_iff plus_nat.add_0)
+  from b and 1 show ?thesis
+    apply (unfold TermRuleMeasure_def Finite_Set.fold_def, auto)
+    using "0" by blast
+qed
+
+lemma TermTerminate_Part4:
+  assumes a: "\<And> t . (T t) \<notin> set E"
+  shows      "CountTerminals E = 0"
+proof-
+  from a show ?thesis
+    apply (induction E)
+     apply (auto)
+    by (metis CountTerminals.simps(3) Elem.exhaust)
+qed
+
+lemma TermTerminate_Part5:
+  assumes a: "CountNonSingleTerminals R > 0"
+  shows      "\<exists> l r t. snd R = l @ [T t] @ r \<and> l @ r \<noteq> []"
+proof-
+  from a have 0: "CountTerminals (snd R) > 0"
+    by (metis CountNonSingleTerminals.elims gr0I snd_conv)
+  from 0 have 1: "\<exists> t. (T t) \<in> set (snd R)"
+    using TermTerminate_Part4 by fastforce
+  from 1 have 2: "\<exists> l r t. snd R = l @ [T t] @ r " (is "\<exists> l r t. ?P l r t")
+    by (metis append.left_neutral append_Cons in_set_conv_decomp)
+  then obtain l r t where 3: "?P l r t" by blast
+  have 4: "CountNonSingleTerminals (fst R, [T t]) = 0"
+    by simp
+  from 3 and 4 and a have 5: "l @ r \<noteq> []"
+    by (metis append.right_neutral append_is_Nil_conv append_self_conv2 less_nat_zero_code prod.collapse)
+  from 5 and 3 show ?thesis
+    by auto
+qed
+
+lemma TermTerminate_Part6:
+  assumes a: "TermMeasure G1 > 0"
+  assumes b: "(NT N) \<notin> NonTerminals G1"
+  shows      "\<exists> G2. transformTermSingle G1 N G2"
+proof-
+  from a have 0: "\<exists> R. R \<in> snd G1 \<and> CountNonSingleTerminals R > 0" (is "\<exists> R. ?P R")
+    apply (unfold TermMeasure_def) 
+    by (metis Finite_Set.fold_def TermRuleMeasure_def 
+        TermTerminate_Part3 bot_nat_0.not_eq_extremum) 
+  then obtain R where 1: "?P R" by blast
+  from 1 have 2: "\<exists> l r t S1 rhs. rhs = l @ [T t] @ r \<and> l @ r \<noteq> [] \<and> (S1, rhs) = R" 
+    (is "\<exists> l r t S1 rhs. ?P l r t S1 rhs")
+    by (metis TermTerminate_Part5 old.prod.exhaust snd_conv)
+  then obtain l r t S1 rhs where 3: "?P l r t S1 rhs" by blast
+  have 4: "\<exists> Rs1 S. (S, Rs1) = G1" (is "\<exists> Rs1 S. ?P Rs1 S")
+    using prod.collapse by blast
+  then obtain Rs1 S where 5: "?P Rs1 S" by blast
+  from 5 and 3 and b show ?thesis
+    apply (unfold transformTermSingle_def, rule_tac x="(S, ({(S1, l @ [NT N] @ r), (N, [T t])} \<union> (Rs1-{R})))" in exI,
+          rule_tac x="S" in exI, simp, rule_tac x="S1" in exI, simp, rule_tac x="rhs" in exI, simp, rule_tac x="l @ [NT N] @ r" in exI, simp, 
+          rule_tac x="N" in exI, simp, rule_tac x="[T t]" in exI, simp, rule_tac x="Rs1" in exI, simp, rule_tac x="l" in exI, simp) 
+    using "1" by force
+qed
+
+
+type_synonym ('n, 't) NTGen = "('n, 't) CFG \<Rightarrow> 'n"
+
+definition NewNTGen :: "('n, 't) NTGen \<Rightarrow> bool"
+  where "NewNTGen Gen \<equiv> (\<forall> Cfg. (NT (Gen Cfg)) \<notin> NonTerminals Cfg)"
+
+function (domintros) transformTerm :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
+  where "transformTerm Gen G1 = (if (TermMeasure G1 = 0) then G1 else 
+                                (transformTerm Gen (SOME G2. transformTermSingle G1 (Gen G1) G2)))"
+  by pat_completeness auto
+
+lemma TermTerminate_Part7:
+  assumes a: "finiteCFG G"
+  shows      "\<forall> G2. (transformTermSingle G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> TermMeasure G2 < TermMeasure G)"
+proof-
+  from a show ?thesis 
+    by (simp add: TermFinite TermTerminate_Part1)
+qed
+
+
+lemma TermTerminate_Part8:
+  assumes a: "TermMeasure G > 0"
+  assumes b: "NewNTGen Gen"
+  shows      "\<exists> G2. (transformTermSingle G (Gen G) G2)"
+proof-
+  from b have 0: "(NT (Gen G)) \<notin> NonTerminals G"
+    using NewNTGen_def by blast
+  from 0 and a show ?thesis
+    by (meson TermTerminate_Part6)
+qed
+
+lemma TermTerminate_Part9:
+  assumes d: "NewNTGen Gen"
+  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> transformTerm_dom (Gen, G)"
+  assumes b: "TermMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "transformTerm_dom (Gen, G)"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    have 0: "\<And> G gen. TermMeasure G = 0 \<Longrightarrow> transformTerm_dom (gen, G)"
+      apply (rule transformTerm.domintros)
+      by fastforce
+    from x and 0 and b show ?thesis by blast
+  next
+    assume y: "n \<noteq> 0"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "TermMeasure G > 0" by auto
+    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using b c d by blast
+    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using "0" d by blast
+    from a and 1 and d have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> transformTerm_dom (Gen, G2)"
+      by blast
+    from 3 and 2 have 4: "transformTerm_dom (Gen, (SOME G2. transformTermSingle G (Gen G) G2))"
+      by (simp add: someI_ex)
+    from 0 and 4 show ?thesis
+      by (meson transformTerm.domintros)
+  qed
+qed
+
+lemma TermTerminate_Part10:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "transformTerm_dom (Gen, G1)"
+proof-
+  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> transformTerm_dom (Gen, G)"
+    apply (induction n rule: less_induct)
+    using TermTerminate_Part9 a by blast
+  from 2 show ?thesis
+    by (simp add: "1" b)
+qed
+
+lemma TermTerminate_Part11:
+  assumes d: "NewNTGen Gen"
+  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes b: "TermMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "\<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    from x  and b have 0: "transformTerm Gen G = G"
+      by (simp add: TermTerminate_Part10 c d transformTerm.psimps)
+    from 0 show ?thesis
+      by simp
+  next
+    assume y: "\<not> (n = 0)"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "TermMeasure G > 0" by auto
+    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using b c d by blast
+    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using "0" d by blast
+    have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+      by (simp add: verifyTransformTerm)  
+    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformTermSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+      by (metis someI_ex)
+    show ?thesis
+      by (metis "1" "2" "4" TermTerminate_Part10 a c d someI_ex transformTerm.psimps)
+  qed
+qed
+
+lemma TermTerminate_Part12:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "\<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    apply (induction n rule: less_induct)
+    using TermTerminate_Part11 a by blast
+  from 2 show ?thesis
+    by (simp add: "1" b)
+qed
+
+definition TermProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "TermProperty G \<equiv> (TermMeasure G = 0)"
+
+theorem verifyTerm:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "TermProperty (transformTerm Gen G1) \<and> \<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  from a and b have 0: "transformTerm_dom (Gen, G1)"
+    by (simp add: TermTerminate_Part10)
+  from 0 have 1: "TermMeasure (transformTerm Gen G1) = 0"
+    apply (induct rule: transformTerm.pinduct)
+    by (simp add: transformTerm.psimps)
+  from 0 have 2: "\<lbrakk>(transformTerm Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+    by (simp add: TermTerminate_Part12 a b)
+  show ?thesis
+    by (simp add: "1" "2" TermProperty_def)
+qed
+
+definition CountMoreThanTwoLists :: "('n, 't) Rule \<Rightarrow> nat"
+  where "CountMoreThanTwoLists R = (if length (snd R) < 2 then 0 else (length (snd R) - 2))"
+
+definition BinFold :: "('n, 't) Rule \<Rightarrow> nat \<Rightarrow> nat"
+  where "BinFold R N = N + (CountMoreThanTwoLists R)"
+
+definition BinRuleMeasure :: "('n, 't) RuleSet \<Rightarrow> nat"
+  where "BinRuleMeasure R = Finite_Set.fold BinFold 0 R"
+
+definition BinMeasure :: "('n, 't) CFG \<Rightarrow> nat"
+  where "BinMeasure G = BinRuleMeasure (snd G)"
+
+lemma BinTerminate_Part1:
+  assumes x: "transformBinSingle G1 N G2"
+  assumes y: "finiteCFG G1"
+  shows      "BinMeasure G1 > BinMeasure G2"
+proof-
+  from x have 1: "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+                  (S, Rs1) = G1 
+                  \<and> R1 = (S1, L @ a # R)
+                  \<and> R2 = (S1, L @ [NT N])
+                  \<and> R3 = (N, a # R)  
+                  \<and> L \<noteq> [] \<and> R \<noteq> []
+                  \<and> (S, Rs2) = G2 
+                  \<and> R1 \<in> Rs1
+                  \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
+                  \<and> NT(N) \<notin> NonTerminals(G1)"
+          (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
+    by (simp add: transformBinSingle_def)
+  then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
+  from r have a: "R1 = (S1, L @ a # R)" by auto
+  from r have b: "R2 = (S1, L @ [NT N])" by auto
+  from r have c: "R3 = (N, a # R)" by auto
+  from r have d: "L \<noteq> [] \<and> R \<noteq> []" by auto
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have i: "R1 \<in> Rs1" by auto
+  from r have j: "Rs2 = {R2, R3} \<union> (Rs1 - {R1})" by auto
+  from r have k: "NT N \<notin> NonTerminals G1" by auto
+  from a b c d have 2: "CountMoreThanTwoLists R2 + CountMoreThanTwoLists R3 < CountMoreThanTwoLists R1"
+    apply (simp add: CountMoreThanTwoLists_def) 
+    by (metis Nat.add_diff_assoc One_nat_def Suc_pred add_eq_if add_le_cancel_left length_0_conv length_greater_0_conv lessI plus_1_eq_Suc zero_le)  
+  from y and e have 0: "finite Rs1" by (simp add: finiteCFG_def)
+  have 4: "\<And> Rs. comp_fun_commute_on Rs BinFold "
+    apply (unfold comp_fun_commute_on_def BinFold_def) 
+    by fastforce
+  from 4 and i and 0 have 5: "BinFold R1 (BinRuleMeasure (Rs1 - {R1})) = BinRuleMeasure Rs1"
+    apply (unfold BinRuleMeasure_def)
+    by (simp add: "4" foldRemove)
+  from 5 have 6: "CountMoreThanTwoLists R1 + (BinRuleMeasure (Rs1 - {R1})) = BinRuleMeasure Rs1"
+    by (unfold BinFold_def, auto)
+  from b and k have 7: "R2 \<notin> Rs1"
+    apply (unfold NonTerminals_def NTInRule_def)
+    using e by fastforce
+  from c and k have 8: "R3 \<notin> Rs1"
+    apply (unfold NonTerminals_def NTInRule_def)
+    using e  by auto
+  from 7 have 9: "R2 \<notin> (Rs1 - {R1})"
+    by auto
+  from 9 and 0 and 4 have 10: "BinFold R2 (BinRuleMeasure (Rs1 - {R1})) = BinRuleMeasure ({R2} \<union> (Rs1 - {R1}))"
+    by (metis BinRuleMeasure_def finite_Diff  foldInsert insert_is_Un)
+  from 10 have 11: "CountMoreThanTwoLists R2 + (BinRuleMeasure (Rs1 - {R1})) = BinRuleMeasure ({R2} \<union> (Rs1 - {R1}))"
+    by (simp add: BinFold_def)
+  from 8 have 12: "R3 \<notin> {R2} \<union> (Rs1 - {R1})"
+    by (smt (verit, del_insts) Diff_iff NTInRule_def NonTerminals_def Pair_inject insert_iff insert_is_Un mem_Collect_eq r)
+  from 12 and 4 have 13: "BinFold R3 (BinRuleMeasure ({R2} \<union> (Rs1 - {R1}))) = BinRuleMeasure ({R2, R3} \<union> (Rs1 - {R1}))"
+    by (smt (verit) "0" BinRuleMeasure_def Un_insert_left finite_Diff finite_insert foldInsert insert_commute sup_bot_left)
+  from 13 and 12 have 14: "CountMoreThanTwoLists R3 + CountMoreThanTwoLists R2 + (BinRuleMeasure (Rs1 - {R1})) = BinRuleMeasure (Rs2)"
+    by (metis "11" BinFold_def ab_semigroup_add_class.add_ac(1) add.commute j)
+  from 14 and 6 and 2 show ?thesis
+    by (simp add: BinMeasure_def e f)
+qed
+
+lemma BinTerminate_Part2:
+  assumes a: "\<And> R. R \<in> Rs \<Longrightarrow> CountMoreThanTwoLists R = 0"
+  assumes b: "finite Rs"
+  shows      "fold_graph BinFold 0 Rs 0"
+proof-
+  have 0: "\<And> Rs. comp_fun_commute_on Rs BinFold "
+    apply (unfold comp_fun_commute_on_def BinFold_def) 
+    by fastforce
+  from 0 have 1: "comp_fun_commute_on Rs BinFold" by auto
+  have 2: "finite Rs \<Longrightarrow> (\<And> R. R \<in> Rs \<Longrightarrow> CountMoreThanTwoLists R = 0) \<Longrightarrow> fold_graph BinFold 0 Rs 0"
+    apply (induct rule: finite_induct) 
+    using fold_graph.emptyI apply fastforce
+    by (metis BinFold_def add.right_neutral fold_graph.insertI insertCI)
+  from 2 show ?thesis
+    using a b by blast
+qed
+
+lemma BinTerminate_Part3:
+  assumes a: "\<And> R. R \<in> Rs \<Longrightarrow> CountMoreThanTwoLists R = 0"
+  assumes b: "finite Rs"
+  shows      "BinRuleMeasure Rs = 0"
+proof-
+  from a and b have 0: "fold_graph BinFold 0 Rs 0"
+    using BinTerminate_Part2 by blast
+  from b and 0 have 1: "\<And> x. fold_graph BinFold 0 Rs x \<Longrightarrow> x = 0"
+    by (smt (verit) BinFold_def a empty_iff fold_graph_closed_lemma insert_iff plus_nat.add_0)
+  from b and 1 show ?thesis
+    apply (unfold BinRuleMeasure_def Finite_Set.fold_def, auto)
+    using "0" by blast
+qed
+
+lemma BinTerminate_Part4:
+  assumes a: "CountMoreThanTwoLists R > 0"
+  shows      "\<exists> l r a. snd R = l @ a # r \<and> l \<noteq> [] \<and> r \<noteq> []"
+proof-
+  from a have 0: "length (snd R) \<ge> 3"
+    apply (unfold CountMoreThanTwoLists_def) 
+    by (metis (mono_tags, opaque_lifting) One_nat_def Suc_eq_plus1 Suc_leI cancel_comm_monoid_add_class.diff_cancel
+        linorder_less_linear numeral_3_eq_3 one_add_one zero_less_iff_neq_zero)
+  from 0 show ?thesis
+    by (metis (no_types, opaque_lifting) append_Cons append_Nil dual_order.strict_iff_not 
+        length_Cons list.exhaust list.size(3) not_less_eq numeral_3_eq_3)
+qed
+
+lemma BinTerminate_Part5:
+  assumes a: "BinMeasure G1 > 0"
+  assumes b: "(NT N) \<notin> NonTerminals G1"
+  shows      "\<exists> G2. transformBinSingle G1 N G2"
+proof-
+  from a have 0: "\<exists> R. R \<in> snd G1 \<and> CountMoreThanTwoLists R > 0" (is "\<exists> R. ?P R")
+    apply (unfold BinMeasure_def) 
+    by (metis Finite_Set.fold_def BinRuleMeasure_def 
+        BinTerminate_Part3 bot_nat_0.not_eq_extremum) 
+  then obtain R where 1: "?P R" by blast
+  from 1 have 2: "\<exists> l r a S1 rhs. rhs = l @ a # r \<and> l \<noteq> [] \<and> r \<noteq> [] \<and> (S1, rhs) = R" 
+    (is "\<exists> l r t S1 rhs. ?P l r t S1 rhs")
+    by (metis BinTerminate_Part4 old.prod.exhaust snd_conv)
+  then obtain l r a S1 rhs where 3: "?P l r a S1 rhs" by blast
+  have 4: "\<exists> Rs1 S. (S, Rs1) = G1" (is "\<exists> Rs1 S. ?P Rs1 S")
+    using prod.collapse by blast
+  then obtain Rs1 S where 5: "?P Rs1 S" by blast
+  from 5 and 3 and b show ?thesis
+    apply (unfold transformBinSingle_def , rule_tac x="(S, ({(S1, l @ [NT N]), (N, a # r)} \<union> (Rs1-{R})))" in exI, simp
+          , rule_tac x="S" in exI, simp,rule_tac x="S1" in exI, simp, rule_tac x="rhs" in exI, simp,
+          rule_tac x="l @ [NT N]" in exI, simp, rule_tac x="Rs1" in exI, simp) 
+    using "1" by fastforce
+qed
+
+
+function (domintros) transformBin :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
+  where "transformBin Gen G1 = (if (BinMeasure G1 = 0) then G1 else 
+                                (transformBin Gen (SOME G2. transformBinSingle G1 (Gen G1) G2)))"
+  by pat_completeness auto
+
+lemma BinTerminate_Part7:
+  assumes a: "finiteCFG G"
+  shows      "\<forall> G2. (transformBinSingle G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> BinMeasure G2 < BinMeasure G)"
+proof-
+  from a show ?thesis 
+    by (simp add: BinFinite BinTerminate_Part1)
+qed
+
+
+lemma BinTerminate_Part8:
+  assumes a: "BinMeasure G > 0"
+  assumes b: "NewNTGen Gen"
+  shows      "\<exists> G2. (transformBinSingle G (Gen G) G2)"
+proof-
+  from b have 0: "(NT (Gen G)) \<notin> NonTerminals G"
+    using NewNTGen_def by blast
+  from 0 and a show ?thesis
+    by (meson BinTerminate_Part5)
+qed
+
+lemma TermTerminate_Part9:
+  assumes d: "NewNTGen Gen"
+  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> transformTerm_dom (Gen, G)"
+  assumes b: "TermMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "transformTerm_dom (Gen, G)"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    have 0: "\<And> G gen. TermMeasure G = 0 \<Longrightarrow> transformTerm_dom (gen, G)"
+      apply (rule transformTerm.domintros)
+      by fastforce
+    from x and 0 and b show ?thesis by blast
+  next
+    assume y: "n \<noteq> 0"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "TermMeasure G > 0" by auto
+    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using b c d by blast
+    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using "0" d by blast
+    from a and 1 and d have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> transformTerm_dom (Gen, G2)"
+      by blast
+    from 3 and 2 have 4: "transformTerm_dom (Gen, (SOME G2. transformTermSingle G (Gen G) G2))"
+      by (simp add: someI_ex)
+    from 0 and 4 show ?thesis
+      by (meson transformTerm.domintros)
+  qed
+qed
+
+lemma TermTerminate_Part10:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "transformTerm_dom (Gen, G1)"
+proof-
+  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> transformTerm_dom (Gen, G)"
+    apply (induction n rule: less_induct)
+    using TermTerminate_Part9 a by blast
+  from 2 show ?thesis
+    by (simp add: "1" b)
+qed
+
+lemma TermTerminate_Part11:
+  assumes d: "NewNTGen Gen"
+  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes b: "TermMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "\<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    from x  and b have 0: "transformTerm Gen G = G"
+      by (simp add: TermTerminate_Part10 c d transformTerm.psimps)
+    from 0 show ?thesis
+      by simp
+  next
+    assume y: "\<not> (n = 0)"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "TermMeasure G > 0" by auto
+    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using b c d by blast
+    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+      using TermTerminate_Part7 and TermTerminate_Part8 
+      using "0" d by blast
+    have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+      by (simp add: verifyTransformTerm)  
+    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformTermSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+      by (metis someI_ex)
+    show ?thesis
+      by (metis "1" "2" "4" TermTerminate_Part10 a c d someI_ex transformTerm.psimps)
+  qed
+qed
+
+lemma TermTerminate_Part12:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "\<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    apply (induction n rule: less_induct)
+    using TermTerminate_Part11 a by blast
+  from 2 show ?thesis
+    by (simp add: "1" b)
+qed
+
+definition TermProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "TermProperty G \<equiv> (TermMeasure G = 0)"
+
+theorem verifyTerm:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "TermProperty (transformTerm Gen G1) \<and> \<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  from a and b have 0: "transformTerm_dom (Gen, G1)"
+    by (simp add: TermTerminate_Part10)
+  from 0 have 1: "TermMeasure (transformTerm Gen G1) = 0"
+    apply (induct rule: transformTerm.pinduct)
+    by (simp add: transformTerm.psimps)
+  from 0 have 2: "\<lbrakk>(transformTerm Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+    by (simp add: TermTerminate_Part12 a b)
+  show ?thesis
+    by (simp add: "1" "2" TermProperty_def)
+qed
+    
+
