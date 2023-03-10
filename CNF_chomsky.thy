@@ -1277,6 +1277,13 @@ definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> '
                                    \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet A B Rs1)) - {(A, [NT(B)])}"
 *)
 
+    
+definition IsUnitProductionRule :: "('n, 't) Rule \<Rightarrow> bool"
+  where "IsUnitProductionRule R \<equiv> \<exists> N. (snd R) = [NT N]"
+
+definition HasUnitProductionRule :: "('n, 't) RuleSet \<Rightarrow> 'n \<Rightarrow> bool"
+  where "HasUnitProductionRule Rs N \<equiv> \<exists> R. R \<in> Rs \<and> (fst R) = N \<and> IsUnitProductionRule R"
+
 definition isNTToNTProduction :: "('n, 't) Rule \<Rightarrow> bool"
   where "isNTToNTProduction R \<equiv> \<exists> N1 N2. R = (N1, [NT N2])"
 
@@ -1296,6 +1303,7 @@ definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> (
   where "transformUnitSingle G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
                                    (S, Rs1) = G1
                                    \<and> (S, Rs2) = G2
+                                   \<and> HasUnitProductionRule Rs1 A
                                    \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet A Rs1)) - (NTToNTSetForA A)"
 
 lemma Unit_Part1:
@@ -1445,6 +1453,7 @@ proof-
   from a have 0: "\<exists> S Rs1 Rs2. 
                   (S, Rs1) = G1
                   \<and> (S, Rs2) = G2
+                  \<and> HasUnitProductionRule Rs1 N
                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
     by (simp add: transformUnitSingle_def)
@@ -1605,6 +1614,7 @@ proof-
   from a have 0: "\<exists> S Rs1 Rs2. 
                   (S, Rs1) = G1
                   \<and> (S, Rs2) = G2
+                  \<and> HasUnitProductionRule Rs1 N
                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
     by (simp add: transformUnitSingle_def)
@@ -3174,7 +3184,6 @@ proof-
     using "1" by fastforce
 qed
 
-
 function (domintros) transformBin :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
   where "transformBin Gen G1 = (if (BinMeasure G1 = 0) then G1 else 
                                 (transformBin Gen (SOME G2. transformBinSingle G1 (Gen G1) G2)))"
@@ -3188,7 +3197,6 @@ proof-
     by (simp add: BinFinite BinTerminate_Part1)
 qed
 
-
 lemma BinTerminate_Part8:
   assumes a: "BinMeasure G > 0"
   assumes b: "NewNTGen Gen"
@@ -3200,119 +3208,378 @@ proof-
     by (meson BinTerminate_Part5)
 qed
 
-lemma TermTerminate_Part9:
+lemma BinTerminate_Part9:
   assumes d: "NewNTGen Gen"
-  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> transformTerm_dom (Gen, G)"
-  assumes b: "TermMeasure G = n"
+  assumes a: "\<And> G. (BinMeasure G < n \<and> finiteCFG G) \<Longrightarrow> transformBin_dom (Gen, G)"
+  assumes b: "BinMeasure G = n"
   assumes c: "finiteCFG G"
-  shows      "transformTerm_dom (Gen, G)"
+  shows      "transformBin_dom (Gen, G)"
 proof-
   show ?thesis
   proof cases
     assume x: "n = 0"
-    have 0: "\<And> G gen. TermMeasure G = 0 \<Longrightarrow> transformTerm_dom (gen, G)"
-      apply (rule transformTerm.domintros)
+    have 0: "\<And> G gen. BinMeasure G = 0 \<Longrightarrow> transformBin_dom (gen, G)"
+      apply (rule transformBin.domintros)
       by fastforce
     from x and 0 and b show ?thesis by blast
   next
     assume y: "n \<noteq> 0"
     from y have x: "n > 0" by auto
-    from b and x have 0: "TermMeasure G > 0" by auto
-    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
-      using TermTerminate_Part7 and TermTerminate_Part8 
+    from b and x have 0: "BinMeasure G > 0" by auto
+    have 1: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
+      using BinTerminate_Part7 and BinTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
-      using TermTerminate_Part7 and TermTerminate_Part8 
+    have 2: "\<exists> G2. transformBinSingle G (Gen G) G2"
+      using BinTerminate_Part7 and BinTerminate_Part8 
       using "0" d by blast
-    from a and 1 and d have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> transformTerm_dom (Gen, G2)"
+    from a and 1 and d have 3: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> transformBin_dom (Gen, G2)"
       by blast
-    from 3 and 2 have 4: "transformTerm_dom (Gen, (SOME G2. transformTermSingle G (Gen G) G2))"
+    from 3 and 2 have 4: "transformBin_dom (Gen, (SOME G2. transformBinSingle G (Gen G) G2))"
       by (simp add: someI_ex)
     from 0 and 4 show ?thesis
-      by (meson transformTerm.domintros)
+      by (meson transformBin.domintros)
   qed
 qed
 
-lemma TermTerminate_Part10:
+lemma BinTerminate_Part10:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "transformTerm_dom (Gen, G1)"
+  shows      "transformBin_dom (Gen, G1)"
 proof-
-  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+  have 0: "\<exists> n. BinMeasure G1 = n" (is "\<exists> n. ?P n")
     by auto 
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> transformTerm_dom (Gen, G)"
+  have 2: "\<And> G. finiteCFG G \<and> BinMeasure G = n \<Longrightarrow> transformBin_dom (Gen, G)"
     apply (induction n rule: less_induct)
-    using TermTerminate_Part9 a by blast
+    using BinTerminate_Part9 a by blast
   from 2 show ?thesis
     by (simp add: "1" b)
 qed
 
-lemma TermTerminate_Part11:
+lemma BinTerminate_Part11:
   assumes d: "NewNTGen Gen"
-  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
-  assumes b: "TermMeasure G = n"
+  assumes a: "\<And> G. (BinMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes b: "BinMeasure G = n"
   assumes c: "finiteCFG G"
-  shows      "\<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  shows      "\<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
 proof-
   show ?thesis
   proof cases
     assume x: "n = 0"
-    from x  and b have 0: "transformTerm Gen G = G"
-      by (simp add: TermTerminate_Part10 c d transformTerm.psimps)
+    from x  and b have 0: "transformBin Gen G = G"
+      by (simp add: BinTerminate_Part10 c d transformBin.psimps)
     from 0 show ?thesis
       by simp
   next
     assume y: "\<not> (n = 0)"
     from y have x: "n > 0" by auto
-    from b and x have 0: "TermMeasure G > 0" by auto
-    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
-      using TermTerminate_Part7 and TermTerminate_Part8 
+    from b and x have 0: "BinMeasure G > 0" by auto
+    have 1: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
+      using BinTerminate_Part7 and BinTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
-      using TermTerminate_Part7 and TermTerminate_Part8 
+    have 2: "\<exists> G2. transformBinSingle G (Gen G) G2"
+      using BinTerminate_Part7 and BinTerminate_Part8 
       using "0" d by blast
-    have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-      by (simp add: verifyTransformTerm)  
-    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformTermSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    have 3: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+      by (simp add: verifyTransformBin)  
+    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformBinSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
       by (metis someI_ex)
     show ?thesis
-      by (metis "1" "2" "4" TermTerminate_Part10 a c d someI_ex transformTerm.psimps)
+      by (metis "1" "2" "4" BinTerminate_Part10 a c d someI_ex transformBin.psimps)
   qed
 qed
 
-lemma TermTerminate_Part12:
+lemma BinTerminate_Part12:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "\<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  shows      "\<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
 proof-
-  have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
+  have 0: "\<exists> n. BinMeasure G1 = n" (is "\<exists> n. ?P n")
     by auto 
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  have 2: "\<And> G. finiteCFG G \<and> BinMeasure G = n \<Longrightarrow> \<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
     apply (induction n rule: less_induct)
-    using TermTerminate_Part11 a by blast
+    using BinTerminate_Part11 a by blast
   from 2 show ?thesis
     by (simp add: "1" b)
 qed
 
-definition TermProperty :: "('n, 't) CFG \<Rightarrow> bool"
-  where "TermProperty G \<equiv> (TermMeasure G = 0)"
+definition BinProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "BinProperty G \<equiv> (BinMeasure G = 0)"
 
-theorem verifyTerm:
+theorem verifyBin:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "TermProperty (transformTerm Gen G1) \<and> \<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  shows      "BinProperty (transformBin Gen G1) \<and> \<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
 proof-
-  from a and b have 0: "transformTerm_dom (Gen, G1)"
-    by (simp add: TermTerminate_Part10)
-  from 0 have 1: "TermMeasure (transformTerm Gen G1) = 0"
-    apply (induct rule: transformTerm.pinduct)
-    by (simp add: transformTerm.psimps)
-  from 0 have 2: "\<lbrakk>(transformTerm Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
-    by (simp add: TermTerminate_Part12 a b)
+  from a and b have 0: "transformBin_dom (Gen, G1)"
+    by (simp add: BinTerminate_Part10)
+  from 0 have 1: "BinMeasure (transformBin Gen G1) = 0"
+    apply (induct rule: transformBin.pinduct)
+    by (simp add: transformBin.psimps)
+  from 0 have 2: "\<lbrakk>(transformBin Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+    by (simp add: BinTerminate_Part12 a b)
   show ?thesis
-    by (simp add: "1" "2" TermProperty_def)
+    by (simp add: "1" "2" BinProperty_def)
 qed
-    
+
+definition UnitFold :: "('n, 't) RuleSet \<Rightarrow> 'n \<Rightarrow> nat \<Rightarrow> nat"
+  where "UnitFold Rs N n = n + (if (HasUnitProductionRule Rs N) then 1 else 0)"
+
+definition UnitRuleMeasure :: "('n, 't) RuleSet \<Rightarrow> nat"
+  where "UnitRuleMeasure Rs = Finite_Set.fold (UnitFold Rs) 0 (image fst Rs)"
+
+definition UnitMeasure :: "('n, 't) CFG \<Rightarrow> nat"
+  where "UnitMeasure G = UnitRuleMeasure (snd G)"
+
+lemma UnitTerminate_Part1:
+  assumes x: "transformUnitSingle G1 N G2"
+  assumes y: "finiteCFG G1"
+  shows      "UnitMeasure G1 > UnitMeasure G2"
+proof-
+  from x have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> HasUnitProductionRule Rs1 N
+                  \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformUnitSingle_def)
+  then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+  from r have a: "G1 = (S, Rs1)" by auto
+  from r have b: "G2 = (S, Rs2)" by auto
+  from r have c: "HasUnitProductionRule Rs1 N" by auto
+  from r have d: "Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)" by auto
+  from d have 1: "\<not> HasUnitProductionRule Rs2 N"
+    apply (unfold HasUnitProductionRule_def IsUnitProductionRule_def NTToNTSetForA_def) 
+    by force
+  from d have 2: "\<And> A rhs. A \<noteq> N \<Longrightarrow> (A, rhs) \<in> Rs1 \<longleftrightarrow>(A, rhs) \<in> Rs2"
+    apply (unfold NewUnitTransRuleSet_def NTToNTSetForA_def) 
+    by blast
+  from 2 have 3: "\<And> A. A \<noteq> N \<Longrightarrow> HasUnitProductionRule Rs1 A \<longleftrightarrow> HasUnitProductionRule Rs2 A"
+    apply (unfold HasUnitProductionRule_def) 
+    by auto
+  from 2 have 4: "\<And> A rhs. A \<noteq> N \<Longrightarrow> A \<in> image fst Rs2 \<longleftrightarrow> A \<in> image fst Rs1"
+    by auto
+  from c have 5: "N \<in> image fst Rs1"
+    apply (unfold HasUnitProductionRule_def) by blast
+  from 4 and 5 have 6: "image fst Rs2 \<union> {N} = image fst Rs1"
+    by auto
+  have 7: "\<And> Rs x. comp_fun_commute_on x (UnitFold Rs)"
+    apply (unfold comp_fun_commute_on_def UnitFold_def) 
+    by (auto)
+  from y have 8: "finite (image fst Rs1)"
+    by (unfold finiteCFG_def, simp add: a)
+  from 5 and a and 7 and 8 have 9: "(UnitFold Rs1) N (Finite_Set.fold (UnitFold Rs1) 0 ((image fst Rs1) - {N})) = UnitMeasure G1"
+    apply (unfold UnitMeasure_def UnitRuleMeasure_def, simp) 
+    by (simp add: "7" foldRemove)
+  from 9 and c have 10: "UnitMeasure G1 = (Finite_Set.fold (UnitFold Rs1) 0 ((image fst Rs1) - {N})) + 1"
+    by (unfold UnitFold_def, auto)
+  from 6 have 11: "image fst Rs2 - {N} = image fst Rs1 - {N}" by auto
+  from x and y have 12: "finiteCFG G2" 
+    by (simp add: UnitFinite)
+  from 12 have 13: "finite (image fst Rs2)"
+    by (unfold finiteCFG_def, simp add: b)
+  show ?thesis
+  proof cases
+    assume x: "N \<in> image fst Rs2"
+    from 7 and 13 and x and b have 14: "(UnitFold Rs2) N (Finite_Set.fold (UnitFold Rs2) 0 ((image fst Rs2) - {N})) = UnitMeasure G2"
+      by (metis UnitMeasure_def UnitRuleMeasure_def foldRemove prod.sel(2))
+    from 1 and 14 have 15: "UnitMeasure G2 = (Finite_Set.fold (UnitFold Rs2) 0 ((image fst Rs2) - {N}))" 
+      by (simp add: UnitFold_def)
+    from 3 have 16: "\<And> x. x \<in> ((image fst Rs2) - {N}) \<Longrightarrow> ((UnitFold Rs1 x) = (UnitFold Rs2 x))"
+      apply (unfold UnitFold_def)
+      by simp
+    from 15 and 3 have 17: "UnitMeasure G2 = (Finite_Set.fold (UnitFold Rs1) 0 ((image fst Rs2) - {N}))" 
+      by (smt (verit, ccfv_SIG) "13" "16" "7" Diff_subset Finite_Set.fold_cong finite_Diff)
+    from 17 and 11 and 10 show ?thesis by force
+  next
+    assume x: "N \<notin> image fst Rs2"
+    from x have 14: "(Finite_Set.fold (UnitFold Rs2) 0 ((image fst Rs2) - {N})) = UnitMeasure G2"
+      by (simp add: UnitMeasure_def UnitRuleMeasure_def b)
+    from 3 have 15: "\<And> x. x \<in> ((image fst Rs2) - {N}) \<Longrightarrow> ((UnitFold Rs1 x) = (UnitFold Rs2 x))"
+      apply (unfold UnitFold_def)
+      by simp
+    from 14 and 3 have 16: "UnitMeasure G2 = (Finite_Set.fold (UnitFold Rs1) 0 ((image fst Rs2) - {N}))" 
+      by (smt (verit, ccfv_SIG) "13" "15" "7" Diff_subset Finite_Set.fold_cong finite_Diff)
+    from 16 and 11 and 10 show ?thesis by force
+  qed
+qed
+
+lemma UnitTerminate_Part2:
+  assumes a: "\<And> N. N \<in> (image fst Rs) \<Longrightarrow> \<not> HasUnitProductionRule Rs N"
+  assumes b: "finite (fst ` Rs)"
+  shows      "fold_graph (UnitFold Rs) 0 (image fst Rs) 0"
+proof-
+  have 0: "\<And> Rs x. comp_fun_commute_on x (UnitFold Rs) "
+    apply (unfold comp_fun_commute_on_def UnitFold_def) 
+    by fastforce
+  from 0 have 1: "comp_fun_commute_on (image fst Rs) (UnitFold Rs)" by auto
+  have 2: "finite (image fst Rs) \<Longrightarrow> (\<And> N. N \<in> (image fst Rs) \<Longrightarrow> \<not> HasUnitProductionRule Rs N) \<Longrightarrow> fold_graph (UnitFold Rs) 0 (image fst Rs) 0"
+    apply (induct rule: finite_induct) 
+    using fold_graph.emptyI apply fastforce
+    by (metis (full_types) UnitFold_def add.right_neutral fold_graph.simps insertCI)
+  from 2 show ?thesis
+    using a b by blast
+qed
+
+lemma UnitTerminate_Part3:
+  assumes a: "\<And> N. N \<in> (image fst Rs) \<Longrightarrow> \<not> HasUnitProductionRule Rs N"
+  assumes b: "finite (fst ` Rs)"
+  shows      "UnitRuleMeasure Rs = 0"
+proof-
+  from a and b have 0: "fold_graph (UnitFold Rs) 0 (image fst Rs) 0"
+    using UnitTerminate_Part2 by blast
+  from b have 1: "finite (image fst Rs)" by auto
+  from 1 and 0 have 2: "\<And> x. fold_graph (UnitFold Rs) 0 (image fst Rs) x \<Longrightarrow> x = 0"
+    by (smt (verit, ccfv_threshold) UnitFold_def UnitTerminate_Part2 a add.right_neutral 
+        empty_fold_graphE empty_iff finite.emptyI fold_graph_closed_lemma image_empty mem_Collect_eq)
+  from 0 and 2 and b show ?thesis
+    apply (unfold UnitRuleMeasure_def Finite_Set.fold_def, simp) 
+    by blast
+qed
+
+lemma UnitTerminate_Part4:
+  assumes a: "UnitRuleMeasure Rs > 0"
+  shows      "\<exists> N. N \<in> (image fst Rs) \<and> HasUnitProductionRule Rs N"
+proof-
+  from a have 0: "finite (fst ` Rs)" 
+    apply (unfold UnitRuleMeasure_def Finite_Set.fold_def)
+    by presburger
+  from 0 show ?thesis 
+    by (metis UnitTerminate_Part3 assms bot_nat_0.not_eq_extremum)
+qed
+
+lemma UnitTerminate_Part5:
+  assumes a: "UnitMeasure G1 > 0"
+  shows      "\<exists> A G2. transformUnitSingle G1 A G2"
+proof-
+  from a have 0: "\<exists> N. HasUnitProductionRule (snd G1) N" (is "\<exists> N. ?P N")
+    by (metis UnitMeasure_def UnitTerminate_Part4)
+  then obtain N where 1: "?P N" by blast
+  from 1 show ?thesis
+    by (unfold transformUnitSingle_def, rule_tac x="N" in exI, simp, rule_tac x="fst G1" in exI, simp, rule_tac x="snd G1" in exI, simp)
+qed
+
+function (domintros) transformUnit :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
+  where "transformUnit G1 = (if (UnitMeasure G1 = 0) then G1 else 
+                            (transformUnit (SOME G2. \<exists> A. transformUnitSingle G1 A G2)))"
+  by pat_completeness auto
+
+lemma UnitTerminate_Part7:
+  assumes a: "finiteCFG G"
+  shows      "\<forall> A G2. (transformUnitSingle G A G2 \<longrightarrow> finiteCFG G2 \<and> UnitMeasure G2 < UnitMeasure G)"
+proof-
+  from a show ?thesis 
+    by (simp add: UnitFinite UnitTerminate_Part1)
+qed
+
+lemma UnitTerminate_Part9:
+  fixes      G :: "('n, 't) CFG"
+  assumes a: "\<And> G2 :: ('n, 't) CFG. ((UnitMeasure G2 < n \<and> finiteCFG G2) \<Longrightarrow> transformUnit_dom (G2))"
+  assumes b: "UnitMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "transformUnit_dom G"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    have 0: "\<And> G . UnitMeasure G = 0 \<Longrightarrow> transformUnit_dom G"
+      apply (rule transformUnit.domintros)
+      by fastforce
+    from x and 0 and b show ?thesis by blast
+  next
+    assume y: "n \<noteq> 0"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "UnitMeasure G > 0" by auto
+    have 1: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> (UnitMeasure G2 < n  \<and> finiteCFG G2)"
+      using UnitTerminate_Part7 and c and b by blast
+    have 2: "\<exists> A G2. transformUnitSingle G A G2" 
+      using UnitTerminate_Part5 and 0 by blast
+    from 1 and a have 3: "\<And> A G2. (transformUnitSingle G A G2 \<Longrightarrow> transformUnit_dom G2)"
+      by blast
+    from 3 and 2 have 4: "transformUnit_dom (SOME G2. \<exists> A. transformUnitSingle G A G2)"
+      by (smt (verit) someI_ex)
+    from 0 and 4 show ?thesis
+      by (metis transformUnit.domintros)
+  qed
+qed
+      
+lemma UnitTerminate_Part10:
+  assumes b: "finiteCFG G1"
+  shows      "transformUnit_dom G1"
+proof-
+  have 0: "\<exists> n. UnitMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> UnitMeasure G = n \<Longrightarrow> transformUnit_dom (G)"
+    apply (induction n rule: less_induct)
+    using UnitTerminate_Part9 by blast
+  from 2 show ?thesis
+    using "1" b by blast
+qed
+
+lemma UnitTerminate_Part11:
+  fixes      G :: "('n, 't) CFG"
+  assumes a: "\<And> G :: ('n, 't) CFG. (UnitMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes b: "UnitMeasure G = n"
+  assumes c: "finiteCFG G"
+  shows      "\<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  show ?thesis
+  proof cases
+    assume x: "n = 0"
+    from x  and b have 0: "transformUnit G = G"
+      by (simp add: UnitTerminate_Part10 c transformUnit.psimps)
+    from 0 show ?thesis
+      by simp
+  next
+    assume y: "\<not> (n = 0)"
+    from y have x: "n > 0" by auto
+    from b and x have 0: "UnitMeasure G > 0" by auto
+    have 1: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> UnitMeasure G2 < n  \<and> finiteCFG G2"
+      using UnitTerminate_Part7 
+      using b c by blast
+    have 2: "\<exists> G2 A. transformUnitSingle G A G2" 
+      using UnitTerminate_Part5 and 0 by blast
+    have 3: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+      by (simp add: verifyUnitTransform)  
+    from 3 and 2 have 4: "\<lbrakk>(SOME G2. \<exists> A. transformUnitSingle G A G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+      by (smt (verit) someI_ex)
+    from 0 and 4 show ?thesis
+      by (smt (z3) "2" Eps_cong UnitTerminate_Part10 UnitTerminate_Part7 a b c someI_ex transformUnit.psimps)
+  qed
+qed
+
+lemma UnitTerminate_Part12:
+  assumes b: "finiteCFG G1"
+  shows      "\<lbrakk>transformUnit G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  have 0: "\<exists> n. UnitMeasure G1 = n" (is "\<exists> n. ?P n")
+    by auto 
+  then obtain n where 1: "?P n" by blast
+  have 2: "\<And> G. finiteCFG G \<and> UnitMeasure G = n \<Longrightarrow> \<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    apply (induction n rule: less_induct)
+    using UnitTerminate_Part11 by blast
+  from 2 show ?thesis
+    using "1" b by blast
+qed
+
+definition UnitProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "UnitProperty G \<equiv> (UnitMeasure G = 0)"
+
+theorem verifyUnit:
+  assumes b: "finiteCFG G1"
+  shows      "UnitProperty (transformUnit G1) \<and> \<lbrakk>transformUnit G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  from  b have 0: "transformUnit_dom G1"
+    by (simp add: UnitTerminate_Part10)
+  from 0 have 1: "UnitMeasure (transformUnit  G1) = 0"
+    apply (induct rule: transformUnit.pinduct)
+    by (simp add: transformUnit.psimps)
+  from 0 have 2: "\<lbrakk>(transformUnit G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+    by (simp add: UnitTerminate_Part12 b)
+  show ?thesis
+    by (simp add: "1" "2" UnitProperty_def)
+qed
+
 
