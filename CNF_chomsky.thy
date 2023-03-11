@@ -38,6 +38,9 @@ definition Language :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> (('n, 't
 definition Lang :: "('n, 't) CFG \<Rightarrow> (('n, 't) Elem list) set" ("\<lbrakk>_\<rbrakk>")
   where "Lang G \<equiv> {w | w S R. w \<in> \<lbrakk>S\<rbrakk>\<^sub>R \<and> (S, R) = G}"
 
+definition equivLang :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "equivLang G1 G2 \<equiv> \<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+
 definition NTInRule :: "'n \<Rightarrow> ('n, 't) Rule \<Rightarrow> bool"
   where "NTInRule N R \<equiv> \<exists> S Rhs. (S, Rhs) = R \<and> (S = N \<or> (NT(N) \<in> set Rhs))"
 
@@ -498,8 +501,8 @@ qed
 
 section "Transforms Definition"
 
-definition transformStart :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool" 
-  where "transformStart G1 S0 G2 \<equiv> \<exists> S1 R1 R2. (S1, R1) = G1 
+definition transformStartTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool" 
+  where "transformStartTest G1 S0 G2 \<equiv> \<exists> S1 R1 R2. (S1, R1) = G1 
                                    \<and> (S0, R2) = G2 
                                    \<and> NT(S0) \<notin> NonTerminals(G1)
                                    \<and> R2 = insert (S0, [NT(S1)]) R1"
@@ -525,7 +528,7 @@ proof-
     using "0" ProducesInN.simps(2) b by blast
 qed 
 
-lemma Start_Part2_induct1:
+lemma Start_Part2:
   assumes a: "G1 = (S1, R1)"
   assumes b: "G2 = (S0, R2)"
   assumes c: "NT(S0) \<notin> NonTerminals(G1)" 
@@ -566,7 +569,7 @@ proof-
     by (meson ProducesInN.simps(2) Produces_def)
 qed
 
-lemma Start_Part2_induct2:
+lemma Start_Part3:
   assumes a: "G1 = (S1, R1)"
   assumes b: "G2 = (S0, R2)"
   assumes c: "NT(S0) \<notin> NonTerminals(G1)" 
@@ -578,12 +581,12 @@ proof-
   from a and b and c and d have 0: "\<And> A a. (NT S0 \<notin> set A) \<and> A -R2\<rightarrow>\<^sup>n a \<Longrightarrow>  A -R1\<rightarrow>\<^sup>* a"
     apply(induction n)
     apply (metis ProducesInN.simps(1) Produces_def)
-    by (metis Start_Part2_induct1 a c d)
+    by (metis Start_Part2 a c d)
   from 0 and g show ?thesis
     by blast
 qed
 
-lemma Start_Part2:
+lemma Start_Part4:
   assumes a: "G1 = (S1, R1)"
   assumes b: "G2 = (S0, R2)"
   assumes c: "NT(S0) \<notin> NonTerminals(G1)" 
@@ -607,7 +610,7 @@ proof-
     apply(unfold ProductionStep_def Productions_def)
     by (smt (verit, best) Elem.inject(1) Pair_inject append_eq_Cons_conv append_is_Nil_conv list.discI list.inject mem_Collect_eq) 
   have 7: "\<And> A a m. (NT S0 \<notin> set A) \<and> A -R2\<rightarrow>\<^sup>m a \<Longrightarrow>  A -R1\<rightarrow>\<^sup>* a"
-    by (metis Start_Part2_induct2 a c d)
+    by (metis Start_Part3 a c d)
   from 6 and 0 and 1 have 8: "\<exists> r. [NT S0] -R2\<rightarrow> r \<and> ProducesInN r R2 (n-1) x"
     by (metis "2" IsTerminalWord_def ProducesInN.elims(2) diff_Suc_1 list.set_intros(1))
   from 8 and 6 and 7 have 9: "[NT S0] -R2\<rightarrow> [NT S1] \<and> ProducesInN [NT S1] R2 (n-1) x"
@@ -622,20 +625,20 @@ proof-
     by (metis (mono_tags, lifting) "0" "11" "7" "9" CollectI Lang_def Language_def PartialEvalLanguage_def a)
 qed
 
-theorem verifyTransformStart:
-  assumes a: "transformStart G1 S0 G2"
+theorem verifyTransformStartTest:
+  assumes a: "transformStartTest G1 S0 G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
   from a have 1: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (metis Start_Part1 transformStart_def)  
+    by (metis Start_Part1 transformStartTest_def)  
   from a have 2: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (metis Start_Part2 transformStart_def)
+    by (metis Start_Part4 transformStartTest_def)
   from 1 and 2 show ?thesis
     by blast
 qed
 
-definition transformTermSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformTermSingle G1 N G2 \<equiv> \<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+definition transformTermTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformTermTest G1 N G2 \<equiv> \<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
                                  (S, Rs1) = G1 
                                  \<and> R1 = (S1, L @ (T(a) # R))
                                  \<and> R2 = (S1, L @ (NT(N) # R))
@@ -646,8 +649,8 @@ definition transformTermSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> (
                                  \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                                  \<and> NT(N) \<notin> NonTerminals(G1)"
 
-lemma Term_Part1_induct1:
-  assumes p: "transformTermSingle G1 N G2"
+lemma Term_Part1:
+  assumes p: "transformTermTest G1 N G2"
   assumes g: "(NT N) \<notin> set A"
   assumes l: "\<And>A x. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes m: "ProducesInN A (snd G1) (Suc n) x"
@@ -664,7 +667,7 @@ proof-
                   \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                   \<and> NT(N) \<notin> NonTerminals(G1)"
           (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformTermSingle_def)
+    by (simp add: transformTermTest_def)
   then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from r have a: "R1 = (S1, L @ T a # R)" by auto
   from r have b: "R2 = (S1, L @ NT N # R)" by auto
@@ -728,34 +731,34 @@ next
   qed  
 qed
 
-lemma Term_Part1_induct2:
+lemma Term_Part2:
   fixes      A :: "('n, 't) Elem list"
   fixes      G1 :: "('n, 't) CFG"
-  assumes p: "transformTermSingle G1 N G2"
+  assumes p: "transformTermTest G1 N G2"
   assumes l: "(NT N) \<notin> set A" 
   assumes m: "A -(snd G1)\<rightarrow>\<^sup>n x"
   shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
 proof-
-  from p and l and Term_Part1_induct1 have 0: "\<And>A x. (NT N \<notin> set A \<and> A -snd G1\<rightarrow>\<^sup>n x \<Longrightarrow> A -snd G2\<rightarrow>\<^sup>* x)"
+  from p and l and Term_Part1 have 0: "\<And>A x. (NT N \<notin> set A \<and> A -snd G1\<rightarrow>\<^sup>n x \<Longrightarrow> A -snd G2\<rightarrow>\<^sup>* x)"
     apply (induction n)
     apply (metis ProducesInN.simps(1) Produces_def)
-    by (smt (verit) Term_Part1_induct1)
+    by (smt (verit) Term_Part1)
   from 0 and m and l show ?thesis
     by blast
 qed
   
-lemma Term_Part1:
-  assumes a: "transformTermSingle G1 N G2"
+lemma Term_Part3:
+  assumes a: "transformTermTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
   from b have 0: "\<exists> n S Rs1. [NT S] -Rs1\<rightarrow>\<^sup>n x \<and> (S, Rs1) = G1" (is "\<exists> n S Rs1. ?P n S Rs1")
     by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
   then obtain n S Rs1 where 1: "?P n S Rs1" by blast
-  from Term_Part1_induct2 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+  from Term_Part2 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
     by metis
   from a have 3: "NT N \<notin> NonTerminals G1"
-    by(unfold transformTermSingle_def, auto)
+    by(unfold transformTermTest_def, auto)
   from 1 and 3 have 4: "N \<noteq> S"
     by(unfold NonTerminals_def, auto)
   from 4 have 5: "NT N \<notin> set ([NT S])"
@@ -763,7 +766,7 @@ proof-
   from 5 and 2 and 1 have 6: "[NT S] -(snd G2)\<rightarrow>\<^sup>* x"
     by force
   from a and 1 have 7: "\<exists> Rs2. G2 = (S, Rs2)" (is "\<exists> Rs2. ?P Rs2")
-    by(unfold transformTermSingle_def, blast)
+    by(unfold transformTermTest_def, blast)
   then obtain Rs2 where 8: "?P Rs2" by blast
   from b have 9: "IsTerminalWord x" 
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
@@ -771,8 +774,8 @@ proof-
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
 qed
 
-lemma Term_Part2_induct1:
-  assumes a: "transformTermSingle G1 N G2"
+lemma Term_Part4:
+  assumes a: "transformTermTest G1 N G2"
   assumes b: "(NT N) \<notin> set A"
   assumes c: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
   assumes d: "ProducesInN A (snd G2) (Suc n) x"
@@ -790,7 +793,7 @@ proof-
                   \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                   \<and> NT(N) \<notin> NonTerminals(G1)"
           (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformTermSingle_def)
+    by (simp add: transformTermTest_def)
   then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where 1: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from 1 have e: "R1 = (S1, L @ T a # R)" by auto
   from 1 have f: "R2 = (S1, L @ NT N # R)" by auto
@@ -866,8 +869,8 @@ next
   qed
 qed
 
-lemma Term_Part2_induct2:
-  assumes a: "transformTermSingle G1 N G2"
+lemma Term_Part5:
+  assumes a: "transformTermTest G1 N G2"
   assumes b: "(NT N) \<notin> set A"
   assumes c: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
   assumes d: "ProducesInN A (snd G2) n x"
@@ -884,7 +887,7 @@ proof-
       by (metis Suc_pred' less_Suc_eq_le x)
     from 1 and d have 3: "ProducesInN A (snd G2) (Suc n') x"
       by (simp add: x)
-    from 2 and 3 and p and a and b and Term_Part2_induct1 show ?thesis
+    from 2 and 3 and p and a and b and Term_Part4 show ?thesis
       by (metis (no_types, lifting))      
   next
     assume y: "n = 0"
@@ -895,10 +898,10 @@ proof-
   qed
 qed
 
-lemma Term_Part2_induct3:
+lemma Term_Part6:
   fixes      A :: "('n, 't) Elem list"
   fixes      G1 :: "('n, 't) CFG"
-  assumes p: "transformTermSingle G1 N G2"
+  assumes p: "transformTermTest G1 N G2"
   assumes l: "(NT N) \<notin> set A" 
   assumes k: "IsTerminalWord x"
   assumes m: "A -(snd G2)\<rightarrow>\<^sup>n x"
@@ -906,25 +909,25 @@ lemma Term_Part2_induct3:
 proof-
   have 0: "\<And>A x. IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x"
     apply (induction n rule: less_induct)
-    by (smt (verit, best) Term_Part2_induct2 p)
+    by (smt (verit, best) Term_Part5 p)
   from 0 and p and l and m and k show ?thesis 
     by simp
 qed
 
-lemma Term_Part2:
-  assumes a: "transformTermSingle G1 N G2"
+lemma Term_Part7:
+  assumes a: "transformTermTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
   from b have 0: "\<exists> n S Rs2. [NT S] -Rs2\<rightarrow>\<^sup>n x \<and> (S, Rs2) = G2" (is "\<exists> n S Rs2. ?P n S Rs2")
     by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
   then obtain n S Rs2 where 1: "?P n S Rs2" by blast
-  from Term_Part2_induct3 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+  from Term_Part6 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
     by metis
   from a have 3: "NT N \<notin> NonTerminals G1"
-    by(unfold transformTermSingle_def, auto)
+    by(unfold transformTermTest_def, auto)
   from a and 1 and 3 have 4: "N \<noteq> S"
-    by (unfold NonTerminals_def transformTermSingle_def, auto)
+    by (unfold NonTerminals_def transformTermTest_def, auto)
   from 4 have 5: "NT N \<notin> set ([NT S])"
     by simp
   from b have 6: "IsTerminalWord x"
@@ -932,26 +935,26 @@ proof-
   from 5 and 2 and 1 and 6 have 7: "[NT S] -(snd G1)\<rightarrow>\<^sup>* x"
     by force
   from a and 1 have 8: "\<exists> Rs1. G1 = (S, Rs1)" (is "\<exists> Rs1. ?P Rs1")
-    by(unfold transformTermSingle_def, auto)
+    by(unfold transformTermTest_def, auto)
   then obtain Rs1 where 9: "?P Rs1" by blast
   from 9 and 7 and 6 show ?thesis
     by(unfold Lang_def Language_def PartialEvalLanguage_def, auto)
 qed
 
-theorem verifyTransformTerm: 
-  assumes a: "transformTermSingle G1 N G2"
+theorem verifyTransformTermTest: 
+  assumes a: "transformTermTest G1 N G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
   from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (simp add: Term_Part1)
+    by (simp add: Term_Part3)
   from a have 1: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (simp add: Term_Part2)
+    by (simp add: Term_Part7)
   from 0 and 1 show ?thesis
     by fastforce
 qed
 
-definition transformBinSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformBinSingle G1 N G2 \<equiv> \<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+definition transformBinTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformBinTest G1 N G2 \<equiv> \<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
                                    (S, Rs1) = G1 
                                  \<and> R1 = (S1, L @ a # R)
                                  \<and> R2 = (S1, L @ [NT N])
@@ -962,8 +965,8 @@ definition transformBinSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('
                                  \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                                  \<and> NT(N) \<notin> NonTerminals(G1)"
 
-lemma Bin_Part1_induct1:
-  assumes p: "transformBinSingle G1 N G2"
+lemma Bin_Part1:
+  assumes p: "transformBinTest G1 N G2"
   assumes g: "(NT N) \<notin> set A"
   assumes l: "\<And>A x. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes m: "ProducesInN A (snd G1) (Suc n) x"
@@ -980,7 +983,7 @@ proof-
                   \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                   \<and> NT(N) \<notin> NonTerminals(G1)"
           (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformBinSingle_def)
+    by (simp add: transformBinTest_def)
   then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from r have a: "R1 = (S1, L @ a # R)" by auto
   from r have b: "R2 = (S1, L @ [NT N])" by auto
@@ -1033,34 +1036,34 @@ proof-
 qed
 
 
-lemma Bin_Part1_induct2:
+lemma Bin_Part2:
   fixes      A :: "('n, 't) Elem list"
   fixes      G1 :: "('n, 't) CFG"
-  assumes p: "transformBinSingle G1 N G2"
+  assumes p: "transformBinTest G1 N G2"
   assumes l: "(NT N) \<notin> set A" 
   assumes m: "A -(snd G1)\<rightarrow>\<^sup>n x"
   shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
 proof-
-  from p and l and Bin_Part1_induct1 have 0: "\<And>A x. (NT N \<notin> set A \<and> A -snd G1\<rightarrow>\<^sup>n x \<Longrightarrow> A -snd G2\<rightarrow>\<^sup>* x)"
+  from p and l and Bin_Part1 have 0: "\<And>A x. (NT N \<notin> set A \<and> A -snd G1\<rightarrow>\<^sup>n x \<Longrightarrow> A -snd G2\<rightarrow>\<^sup>* x)"
     apply (induction n)
     apply (metis ProducesInN.simps(1) Produces_def)
-    by (smt (verit) Bin_Part1_induct1)
+    by (smt (verit) Bin_Part1)
   from 0 and m and l show ?thesis
     by blast
 qed
 
-lemma Bin_Part1:
-  assumes a: "transformBinSingle G1 N G2"
+lemma Bin_Part3:
+  assumes a: "transformBinTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
   from b have 0: "\<exists> n S Rs1. [NT S] -Rs1\<rightarrow>\<^sup>n x \<and> (S, Rs1) = G1" (is "\<exists> n S Rs1. ?P n S Rs1")
     by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
   then obtain n S Rs1 where 1: "?P n S Rs1" by blast
-  from Bin_Part1_induct2 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
+  from Bin_Part2 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
     by metis
   from a have 3: "NT N \<notin> NonTerminals G1"
-    by(unfold transformBinSingle_def, auto)
+    by(unfold transformBinTest_def, auto)
   from 1 and 3 have 4: "N \<noteq> S"
     by(unfold NonTerminals_def, auto)
   from 4 have 5: "NT N \<notin> set ([NT S])"
@@ -1068,7 +1071,7 @@ proof-
   from 5 and 2 and 1 have 6: "[NT S] -(snd G2)\<rightarrow>\<^sup>* x"
     by force
   from a and 1 have 7: "\<exists> Rs2. G2 = (S, Rs2)" (is "\<exists> Rs2. ?P Rs2")
-    by(unfold transformBinSingle_def, blast)
+    by(unfold transformBinTest_def, blast)
   then obtain Rs2 where 8: "?P Rs2" by blast
   from b have 9: "IsTerminalWord x" 
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
@@ -1076,8 +1079,8 @@ proof-
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
 qed
 
-lemma Bin_Part2_induct1:
-  assumes a: "transformBinSingle G1 N G2"
+lemma Bin_Part4:
+  assumes a: "transformBinTest G1 N G2"
   assumes b: "(NT N) \<notin> set A"
   assumes c: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
   assumes d: "ProducesInN A (snd G2) (Suc n) x"
@@ -1095,7 +1098,7 @@ proof-
                   \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                   \<and> NT(N) \<notin> NonTerminals(G1)"
           (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformBinSingle_def)
+    by (simp add: transformBinTest_def)
   then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where 1: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from 1 have e: "R1 = (S1, L @ a # R)" by auto
   from 1 have f: "R2 = (S1, L @ [NT N])" by auto
@@ -1171,8 +1174,8 @@ next
   qed
 qed
 
-lemma Bin_Part2_induct2:
-  assumes a: "transformBinSingle G1 N G2"
+lemma Bin_Part5:
+  assumes a: "transformBinTest G1 N G2"
   assumes b: "(NT N) \<notin> set A"
   assumes c: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
   assumes d: "ProducesInN A (snd G2) n x"
@@ -1189,7 +1192,7 @@ proof-
       by (metis Suc_pred' less_Suc_eq_le x)
     from 1 and d have 3: "ProducesInN A (snd G2) (Suc n') x"
       by (simp add: x)
-    from 2 and 3 and p and a and b and Bin_Part2_induct1 show ?thesis
+    from 2 and 3 and p and a and b and Bin_Part4 show ?thesis
       by (metis (no_types, lifting))      
   next
     assume y: "n = 0"
@@ -1200,10 +1203,10 @@ proof-
   qed
 qed
 
-lemma Bin_Part2_induct3:
+lemma Bin_Part6:
   fixes      A :: "('n, 't) Elem list"
   fixes      G1 :: "('n, 't) CFG"
-  assumes p: "transformBinSingle G1 N G2"
+  assumes p: "transformBinTest G1 N G2"
   assumes l: "(NT N) \<notin> set A" 
   assumes k: "IsTerminalWord x"
   assumes m: "A -(snd G2)\<rightarrow>\<^sup>n x"
@@ -1211,25 +1214,25 @@ lemma Bin_Part2_induct3:
 proof-
   have 0: "\<And>A x. IsTerminalWord x \<and> (NT N) \<notin> set A \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x"
     apply (induction n rule: less_induct)
-    by (smt (verit, best) Bin_Part2_induct2 p)
+    by (smt (verit, best) Bin_Part5 p)
   from 0 and p and l and m and k show ?thesis 
     by simp
 qed
 
-lemma Bin_Part2:
-  assumes a: "transformBinSingle G1 N G2"
+lemma Bin_Part7:
+  assumes a: "transformBinTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
   from b have 0: "\<exists> n S Rs2. [NT S] -Rs2\<rightarrow>\<^sup>n x \<and> (S, Rs2) = G2" (is "\<exists> n S Rs2. ?P n S Rs2")
     by (simp add: Language_def Lang_def Produces_def PartialEvalLanguage_def, auto)
   then obtain n S Rs2 where 1: "?P n S Rs2" by blast
-  from Bin_Part2_induct3 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
+  from Bin_Part6 and a have 2: "\<And>A B x n. ((NT N) \<notin> set A \<and> IsTerminalWord x \<and> A -(snd G2)\<rightarrow>\<^sup>n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
     by metis
   from a have 3: "NT N \<notin> NonTerminals G1"
-    by(unfold transformBinSingle_def, auto)
+    by(unfold transformBinTest_def, auto)
   from a and 1 and 3 have 4: "N \<noteq> S"
-    by (unfold NonTerminals_def transformBinSingle_def, auto)
+    by (unfold NonTerminals_def transformBinTest_def, auto)
   from 4 have 5: "NT N \<notin> set ([NT S])"
     by simp
   from b have 6: "IsTerminalWord x"
@@ -1237,20 +1240,20 @@ proof-
   from 5 and 2 and 1 and 6 have 7: "[NT S] -(snd G1)\<rightarrow>\<^sup>* x"
     by force
   from a and 1 have 8: "\<exists> Rs1. G1 = (S, Rs1)" (is "\<exists> Rs1. ?P Rs1")
-    by(unfold transformBinSingle_def, auto)
+    by(unfold transformBinTest_def, auto)
   then obtain Rs1 where 9: "?P Rs1" by blast
   from 9 and 7 and 6 show ?thesis
     by(unfold Lang_def Language_def PartialEvalLanguage_def, auto)
 qed
 
-theorem verifyTransformBin: 
-  assumes a: "transformBinSingle G1 N G2"
+theorem verifyTransformBinTest: 
+  assumes a: "transformBinTest G1 N G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
   from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
-    by (simp add: Bin_Part1)
+    by (simp add: Bin_Part3)
   from a have 1: "\<And>x. x \<in> \<lbrakk>G2\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G1\<rbrakk>"
-    by (simp add: Bin_Part2)
+    by (simp add: Bin_Part7)
   from 0 and 1 show ?thesis
     by fastforce
 qed
@@ -1258,8 +1261,8 @@ qed
 
 (* This definition doesn't terminate *)
 (*
-definition transformDelSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformDelSingle G1 N G2 \<equiv> \<exists> S Rs1 Rs2. 
+definition transformDelTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformDelTest G1 N G2 \<equiv> \<exists> S Rs1 Rs2. 
                                 N \<noteq> S 
                                 \<and> (S, Rs1) = G1
                                 \<and> (S, Rs2) = G2
@@ -1269,8 +1272,8 @@ definition transformDelSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('
 definition NewUnitTransRuleSet :: "'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "NewUnitTransRuleSet A B R1 \<equiv> {R2 | R2 Rhs. (B, Rhs) \<in> R1 \<and> (A, Rhs) = R2}"
 
-definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformUnitSingle G1 A B G2 \<equiv> \<exists> S Rs1 Rs2. 
+definition transformUnitTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformUnitTest G1 A B G2 \<equiv> \<exists> S Rs1 Rs2. 
                                    (S, Rs1) = G1
                                    \<and> (S, Rs2) = G2
                                    \<and> (A, [NT(B)]) \<in> Rs1
@@ -1299,8 +1302,8 @@ definition NewUnitTransRuleSet :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarro
 definition NTToNTSetForA :: "'n \<Rightarrow> ('n, 't) RuleSet"
   where "NTToNTSetForA A \<equiv> {R2 | R2 B. (A, [NT B]) = R2}"
 
-definition transformUnitSingle :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformUnitSingle G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
+definition transformUnitTest :: "('n, 't) CFG \<Rightarrow> 'n \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformUnitTest G1 A G2 \<equiv> \<exists> S Rs1 Rs2. 
                                    (S, Rs1) = G1
                                    \<and> (S, Rs2) = G2
                                    \<and> HasUnitProductionRule Rs1 A
@@ -1444,7 +1447,7 @@ definition isTransformedFromNT :: "('n, 't) Elem list \<Rightarrow> ('n, 't) Ele
   where "isTransformedFromNT E1 E2 N Rs \<equiv> \<exists> l r rhs. (E1 = l @ (NT N) # r \<and> E2 = l @ rhs @ r \<and> (N, rhs) \<in> Rs)"
 
 lemma Unit_Part5:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "\<And>m A x. (m \<le> n \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes c: "ProducesInN A (snd G1) (Suc n) x"
   assumes d: "IsTerminalWord x"
@@ -1456,7 +1459,7 @@ proof-
                   \<and> HasUnitProductionRule Rs1 N
                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformUnitSingle_def)
+    by (simp add: transformUnitTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have e: "G1 = (S, Rs1)" by auto
   from r have f: "G2 = (S, Rs2)" by auto
@@ -1549,7 +1552,7 @@ proof-
 qed
 
 lemma Unit_Part6:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "\<And>m A x. (m < n \<and> IsTerminalWord x \<and> A -(snd G1)\<rightarrow>\<^sup>m x \<Longrightarrow> A -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes c: "ProducesInN A (snd G1) n x"
   assumes d: "IsTerminalWord x"
@@ -1577,7 +1580,7 @@ proof-
 qed
 
 lemma Unit_Part7:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "ProducesInN A (snd G1) n x"
   assumes c: "IsTerminalWord x"
   shows      "A -(snd G2)\<rightarrow>\<^sup>* x"
@@ -1590,7 +1593,7 @@ proof-
 qed
 
 lemma Unit_Part8:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
@@ -1601,11 +1604,11 @@ proof-
   from a and 0 and 1 have 2: "[NT (fst G1)] -(snd G2)\<rightarrow>\<^sup>* x"
     by (meson Unit_Part7)
   from 2 and 1 and a show ?thesis
-    by(simp add: transformUnitSingle_def Lang_def Language_def PartialEvalLanguage_def, force)
+    by(simp add: transformUnitTest_def Lang_def Language_def PartialEvalLanguage_def, force)
 qed
 
 lemma Unit_Part9:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "\<And>A x. (IsTerminalWord x \<and> ProducesInN A (snd G2) n x \<Longrightarrow> A -(snd G1)\<rightarrow>\<^sup>* x)"
   assumes c: "ProducesInN A (snd G2) (Suc n) x"
   assumes d: "IsTerminalWord x"
@@ -1617,7 +1620,7 @@ proof-
                   \<and> HasUnitProductionRule Rs1 N
                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformUnitSingle_def)
+    by (simp add: transformUnitTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have e: "G1 = (S, Rs1)" by auto
   from r have f: "G2 = (S, Rs2)" by auto
@@ -1657,7 +1660,7 @@ proof-
 qed
 
 lemma Unit_Part10:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "ProducesInN A (snd G2) n x"
   assumes c: "IsTerminalWord x"
   shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
@@ -1671,7 +1674,7 @@ proof-
 qed
 
 lemma Unit_Part11:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
@@ -1682,11 +1685,11 @@ proof-
   from a and 0 and 1 have 2: "[NT (fst G2)] -(snd G1)\<rightarrow>\<^sup>* x"
     by (meson Unit_Part10)
   from 2 and 1 and a show ?thesis
-    by(simp add: transformUnitSingle_def Lang_def Language_def PartialEvalLanguage_def, force)
+    by(simp add: transformUnitTest_def Lang_def Language_def PartialEvalLanguage_def, force)
 qed
 
-lemma verifyUnitTransform:
-  assumes a: "transformUnitSingle G1 N G2"
+lemma verifyTransformUnitTest:
+  assumes a: "transformUnitTest G1 N G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
   from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
@@ -1719,8 +1722,8 @@ definition DelAllNullableNTsFromRules :: "('n, 't) RuleSet \<Rightarrow> ('n, 't
 definition RemoveAllEpsilonProds :: "'n \<Rightarrow> ('n, 't) RuleSet \<Rightarrow> ('n, 't) RuleSet"
   where "RemoveAllEpsilonProds S X = {R | R N Rhs. R \<in> X \<and> (N, Rhs) = R \<and> (N = S \<or> Rhs \<noteq> Nil)}"
 
-definition transformDel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
-  where "transformDel G1 G2 \<equiv> \<exists> S Rs1 Rs2.
+definition transformDelTest :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "transformDelTest G1 G2 \<equiv> \<exists> S Rs1 Rs2.
                                (S, Rs1) = G1
                                \<and> (S, Rs2) = G2
                                \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
@@ -1851,7 +1854,7 @@ proof-
 qed
 
 lemma Del_Part7:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "[NT A] -(snd G1)\<rightarrow> rhs"
   assumes c: "rhs' \<noteq> Nil"
   assumes d: "DelNullableNTsFromElemList (snd G1) rhs rhs'"
@@ -1862,7 +1865,7 @@ proof-
                   \<and> (S, Rs2) = G2
                   \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformDel_def)
+    by (simp add: transformDelTest_def)
   then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
   from c have 2: "\<And> H. (A, rhs') \<in> H \<Longrightarrow> (A, rhs') \<in> RemoveAllEpsilonProds S H"
     apply(unfold RemoveAllEpsilonProds_def) 
@@ -1973,7 +1976,7 @@ proof-
 qed
     
 lemma Del_Part15:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "\<And>A x. (x \<noteq> Nil \<and> A -(snd G1)\<rightarrow>\<^sup>n x \<Longrightarrow> \<exists> A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x)"
   assumes c: "ProducesInN A (snd G1) (n+1) x"
   assumes e: "x \<noteq> Nil"
@@ -1984,7 +1987,7 @@ proof-
                   \<and> (S, Rs2) = G2
                   \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformDel_def)
+    by (simp add: transformDelTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have f: "G1 = (S, Rs1)" by auto
   from r have g: "G2 = (S, Rs2)" by auto
@@ -2058,7 +2061,7 @@ proof-
 qed
 
 lemma Del_Part16:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "x \<noteq> Nil"
   assumes c: "A -(snd G1)\<rightarrow>\<^sup>n x"
   shows      "\<exists>A'. DelNullableNTsFromElemList (snd G1) A A'  \<and> A' -(snd G2)\<rightarrow>\<^sup>* x"
@@ -2123,7 +2126,7 @@ proof-
 qed
 
 lemma Del_Part20:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes c: "Produces [NT A] (snd G1) x"
   assumes d: "x \<noteq> Nil"
   shows      "[NT A] -(snd G2)\<rightarrow>\<^sup>* x"
@@ -2133,7 +2136,7 @@ proof-
                   \<and> (S, Rs2) = G2
                   \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformDel_def)
+    by (simp add: transformDelTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have e: "G1 = (S, Rs1)" by auto
   from r have f: "G2 = (S, Rs2)" by auto
@@ -2261,7 +2264,7 @@ proof-
 qed
 
 lemma Del_Part28:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "x \<in> \<lbrakk>G1\<rbrakk>"
   shows      "x \<in> \<lbrakk>G2\<rbrakk>"
 proof-
@@ -2270,7 +2273,7 @@ proof-
                 \<and> (S, Rs2) = G2
                 \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
         (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformDel_def)
+    by (simp add: transformDelTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   show ?thesis
   proof cases
@@ -2337,7 +2340,7 @@ proof-
 qed
     
 lemma Del_Part30:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "A -(snd G2)\<rightarrow>\<^sup>n x"
   shows      "A -(snd G1)\<rightarrow>\<^sup>* x"
 proof-
@@ -2346,7 +2349,7 @@ proof-
                 \<and> (S, Rs2) = G2
                 \<and> Rs2 = RemoveAllEpsilonProds S (DelAllNullableNTsFromRules Rs1)"
         (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformDel_def)
+    by (simp add: transformDelTest_def)
   then obtain S Rs1 Rs2 where 1: "?P S Rs1 Rs2" by blast
   from b and 1 have 2: "A -Rs2\<rightarrow>\<^sup>n x" by auto
   have 3: "\<And> A x. A -Rs2\<rightarrow>\<^sup>n x \<Longrightarrow> A -Rs1\<rightarrow>\<^sup>* x"
@@ -2359,7 +2362,7 @@ qed
 
 
 lemma Del_Part31:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "x \<in> \<lbrakk>G2\<rbrakk>"
   shows      "x \<in> \<lbrakk>G1\<rbrakk>"
 proof-
@@ -2371,7 +2374,7 @@ proof-
   from 2 have 3: "[(NT (fst G2))] -(snd G1)\<rightarrow>\<^sup>* x"
     using Del_Part30 a by blast
   from a have 4: "fst G1 = fst G2" 
-    by (unfold transformDel_def, auto)
+    by (unfold transformDelTest_def, auto)
   from b have 5: "IsTerminalWord x" 
     by (unfold Lang_def Language_def PartialEvalLanguage_def, auto)
   from 4 and 3 and 5 show ?thesis
@@ -2380,7 +2383,7 @@ proof-
 qed
 
 theorem verifyTransformDel: 
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
   from a have 0: "\<And>x. x \<in> \<lbrakk>G1\<rbrakk> \<Longrightarrow> x \<in> \<lbrakk>G2\<rbrakk>"
@@ -2395,30 +2398,30 @@ definition finiteCFG :: "('n, 't) CFG \<Rightarrow> bool"
   where "finiteCFG G \<equiv> finite (snd G)"
 
 lemma StartFinite:
-  assumes a: "transformStart G1 S0 G2"
+  assumes a: "transformStartTest G1 S0 G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   from a and b show ?thesis
-    by (metis finiteCFG_def finite_insert snd_conv transformStart_def)
+    by (metis finiteCFG_def finite_insert snd_conv transformStartTest_def)
 qed
 
 lemma TermFinite:
-  assumes a: "transformTermSingle G1 N G2"
+  assumes a: "transformTermTest G1 N G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   from a and b show ?thesis
-    by (unfold transformTermSingle_def finiteCFG_def, auto)
+    by (unfold transformTermTest_def finiteCFG_def, auto)
 qed
 
 lemma BinFinite:
-  assumes a: "transformBinSingle G1 N G2"
+  assumes a: "transformBinTest G1 N G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   from a and b show ?thesis
-    by (unfold transformBinSingle_def finiteCFG_def, auto)
+    by (unfold transformBinTest_def finiteCFG_def, auto)
 qed
 
 lemma finiteImage:
@@ -2513,12 +2516,12 @@ proof-
 qed
   
 lemma UnitFinite:
-  assumes a: "transformUnitSingle G1 N G2"
+  assumes a: "transformUnitTest G1 N G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   from a and b and UnitFinit_part5 show ?thesis
-    by (metis finiteCFG_def finite_Diff finite_UnI snd_conv transformUnitSingle_def)
+    by (metis finiteCFG_def finite_Diff finite_UnI snd_conv transformUnitTest_def)
 qed
 
 lemma listFinite:
@@ -2660,14 +2663,14 @@ proof-
 qed
 
 lemma DelFinite:
-  assumes a: "transformDel G1 G2"
+  assumes a: "transformDelTest G1 G2"
   assumes b: "finiteCFG G1"
   shows      "finiteCFG G2"
 proof-
   have 0: "\<And> R S. RemoveAllEpsilonProds S R \<subseteq> R"
     by(unfold RemoveAllEpsilonProds_def, auto)
   from a and b and 0 show ?thesis
-    using DelFinite_Part10 apply (unfold transformDel_def finiteCFG_def)
+    using DelFinite_Part10 apply (unfold transformDelTest_def finiteCFG_def)
     using finite_subset by fastforce
 qed
 
@@ -2752,7 +2755,7 @@ qed
 
 
 lemma TermTerminate_Part1:
-  assumes x: "transformTermSingle G1 N G2"
+  assumes x: "transformTermTest G1 N G2"
   assumes y: "finiteCFG G1"
   shows      "TermMeasure G1 > TermMeasure G2"
 proof-
@@ -2767,7 +2770,7 @@ proof-
                     \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                     \<and> NT(N) \<notin> NonTerminals(G1)" 
                   (is "\<exists>S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformTermSingle_def)
+    by (simp add: transformTermTest_def)
   from 1 obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from r have a: "R1 = (S1, L @ T a # R)" by auto
   from r have b: "R2 = (S1, L @ NT N # R)" by auto
@@ -2876,7 +2879,7 @@ qed
 lemma TermTerminate_Part6:
   assumes a: "TermMeasure G1 > 0"
   assumes b: "(NT N) \<notin> NonTerminals G1"
-  shows      "\<exists> G2. transformTermSingle G1 N G2"
+  shows      "\<exists> G2. transformTermTest G1 N G2"
 proof-
   from a have 0: "\<exists> R. R \<in> snd G1 \<and> CountNonSingleTerminals R > 0" (is "\<exists> R. ?P R")
     apply (unfold TermMeasure_def) 
@@ -2891,7 +2894,7 @@ proof-
     using prod.collapse by blast
   then obtain Rs1 S where 5: "?P Rs1 S" by blast
   from 5 and 3 and b show ?thesis
-    apply (unfold transformTermSingle_def, rule_tac x="(S, ({(S1, l @ [NT N] @ r), (N, [T t])} \<union> (Rs1-{R})))" in exI,
+    apply (unfold transformTermTest_def, rule_tac x="(S, ({(S1, l @ [NT N] @ r), (N, [T t])} \<union> (Rs1-{R})))" in exI,
           rule_tac x="S" in exI, simp, rule_tac x="S1" in exI, simp, rule_tac x="rhs" in exI, simp, rule_tac x="l @ [NT N] @ r" in exI, simp, 
           rule_tac x="N" in exI, simp, rule_tac x="[T t]" in exI, simp, rule_tac x="Rs1" in exI, simp, rule_tac x="l" in exI, simp) 
     using "1" by force
@@ -2905,12 +2908,12 @@ definition NewNTGen :: "('n, 't) NTGen \<Rightarrow> bool"
 
 function (domintros) transformTerm :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
   where "transformTerm Gen G1 = (if (TermMeasure G1 = 0) then G1 else 
-                                (transformTerm Gen (SOME G2. transformTermSingle G1 (Gen G1) G2)))"
+                                (transformTerm Gen (SOME G2. transformTermTest G1 (Gen G1) G2)))"
   by pat_completeness auto
 
 lemma TermTerminate_Part7:
   assumes a: "finiteCFG G"
-  shows      "\<forall> G2. (transformTermSingle G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> TermMeasure G2 < TermMeasure G)"
+  shows      "\<forall> G2. (transformTermTest G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> TermMeasure G2 < TermMeasure G)"
 proof-
   from a show ?thesis 
     by (simp add: TermFinite TermTerminate_Part1)
@@ -2920,7 +2923,7 @@ qed
 lemma TermTerminate_Part8:
   assumes a: "TermMeasure G > 0"
   assumes b: "NewNTGen Gen"
-  shows      "\<exists> G2. (transformTermSingle G (Gen G) G2)"
+  shows      "\<exists> G2. (transformTermTest G (Gen G) G2)"
 proof-
   from b have 0: "(NT (Gen G)) \<notin> NonTerminals G"
     using NewNTGen_def by blast
@@ -2946,15 +2949,15 @@ proof-
     assume y: "n \<noteq> 0"
     from y have x: "n > 0" by auto
     from b and x have 0: "TermMeasure G > 0" by auto
-    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+    have 1: "\<And> G2. transformTermTest G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
       using TermTerminate_Part7 and TermTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+    have 2: "\<exists> G2. transformTermTest G (Gen G) G2"
       using TermTerminate_Part7 and TermTerminate_Part8 
       using "0" d by blast
-    from a and 1 and d have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> transformTerm_dom (Gen, G2)"
+    from a and 1 and d have 3: "\<And> G2. transformTermTest G (Gen G) G2 \<Longrightarrow> transformTerm_dom (Gen, G2)"
       by blast
-    from 3 and 2 have 4: "transformTerm_dom (Gen, (SOME G2. transformTermSingle G (Gen G) G2))"
+    from 3 and 2 have 4: "transformTerm_dom (Gen, (SOME G2. transformTermTest G (Gen G) G2))"
       by (simp add: someI_ex)
     from 0 and 4 show ?thesis
       by (meson transformTerm.domintros)
@@ -2977,60 +2980,143 @@ proof-
 qed
 
 lemma TermTerminate_Part11:
-  assumes d: "NewNTGen Gen"
-  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  fixes      f :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  fixes      Gen :: "('n, 't) NTGen"
+  assumes a: "\<And> G. (TermMeasure G < n \<and> finiteCFG G) \<Longrightarrow> f G (transformTerm Gen G)"
   assumes b: "TermMeasure G = n"
   assumes c: "finiteCFG G"
-  shows      "\<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes d: "NewNTGen Gen"
+  assumes e: "\<And> G1 N G2. transformTermTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes h: "reflp f \<and> transp f"
+  shows      "f G (transformTerm Gen G)"
 proof-
-  show ?thesis
+ show ?thesis
   proof cases
     assume x: "n = 0"
     from x  and b have 0: "transformTerm Gen G = G"
       by (simp add: TermTerminate_Part10 c d transformTerm.psimps)
     from 0 show ?thesis
-      by simp
+      by (simp add: h reflpD)
   next
     assume y: "\<not> (n = 0)"
     from y have x: "n > 0" by auto
     from b and x have 0: "TermMeasure G > 0" by auto
-    have 1: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
+    have 1: "\<And> G2. transformTermTest G (Gen G) G2 \<Longrightarrow> TermMeasure G2 < n  \<and> finiteCFG G2"
       using TermTerminate_Part7 and TermTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformTermSingle G (Gen G) G2"
+    have 2: "\<exists> G2. transformTermTest G (Gen G) G2"
       using TermTerminate_Part7 and TermTerminate_Part8 
       using "0" d by blast
-    have 3: "\<And> G2. transformTermSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-      by (simp add: verifyTransformTerm)  
-    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformTermSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
-      by (metis someI_ex)
+    from e have 3: "\<And> G2. transformTermTest G (Gen G) G2 \<Longrightarrow> f G G2"
+      by blast 
+    from 3 and 2 have 4: "f G ((SOME G2. transformTermTest G (Gen G) G2))"
+      by (simp add: someI_ex)
     show ?thesis
-      by (metis "1" "2" "4" TermTerminate_Part10 a c d someI_ex transformTerm.psimps)
+      by (metis (no_types, lifting) "0" "1" "2" "4" TermTerminate_Part10 a c d h 
+            not_less_iff_gr_or_eq someI_ex transformTerm.psimps transpE)
   qed
 qed
 
 lemma TermTerminate_Part12:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "\<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  assumes c: "\<And> G1 N G2. transformTermTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes d: "reflp f \<and> transp f"
+  shows      "f G1 (transformTerm Gen G1)"
 proof-
   have 0: "\<exists> n. TermMeasure G1 = n" (is "\<exists> n. ?P n")
     by auto 
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> \<lbrakk>transformTerm Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  have 2: "\<And> G. finiteCFG G \<and> TermMeasure G = n \<Longrightarrow> f G (transformTerm Gen G)"
     apply (induction n rule: less_induct)
-    using TermTerminate_Part11 a by blast
+    using TermTerminate_Part11 a c 
+    by (metis d)
   from 2 show ?thesis
     by (simp add: "1" b)
 qed
 
+lemma TermTerminate_Part13:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "\<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  have 0: "\<And> G1 N G2. transformTermTest G1 N G2 \<Longrightarrow> \<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+    by (meson verifyTransformTermTest)
+  from a b 0 show ?thesis
+    using TermTerminate_Part12 apply (rule_tac Gen="Gen" in TermTerminate_Part12) 
+    apply blast
+    apply blast
+    apply (simp add: "0")
+    by (simp add: reflpI transpI)
+qed
+
+definition finiteRel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "finiteRel G1 G2 \<equiv> finiteCFG G1 \<longrightarrow> finiteCFG G2"
+
+lemma rtransFiniteRel: 
+  shows "transp finiteRel \<and> reflp finiteRel"
+proof-
+  show ?thesis
+    apply (unfold finiteRel_def) 
+    by (metis (mono_tags, lifting) reflpI transpI)
+qed
+
 definition TermProperty :: "('n, 't) CFG \<Rightarrow> bool"
-  where "TermProperty G \<equiv> (TermMeasure G = 0)"
+  where "TermProperty G \<equiv> (\<forall> R a. (R \<in> (snd G) \<and> (T a) \<in> set (snd R) \<longrightarrow> (snd R) = [T a]))"
+
+lemma TermTerminate_Part14:
+  assumes a: "R \<in> (snd G)"
+  assumes b: "CountNonSingleTerminals R > 0"
+  assumes c: "finiteCFG G"
+  shows      "TermMeasure G > 0"
+proof-
+  have 0: "\<And> Rs. comp_fun_commute_on Rs TermFold "
+    apply (unfold comp_fun_commute_on_def TermFold_def) 
+    by fastforce
+  from a and 0 have 1: "Finite_Set.fold TermFold 0 (snd G) = TermFold R (Finite_Set.fold TermFold 0 ((snd G) - {R}))"
+    by (metis c finiteCFG_def foldRemove)
+  from 1 and b have 2: "Finite_Set.fold TermFold 0 (snd G) > 0"
+    by (unfold TermFold_def, simp)
+  from 2 show ?thesis
+    by (unfold TermMeasure_def TermRuleMeasure_def, auto)
+qed
+
+lemma TermTerminate_Part15:
+  assumes a: "TermMeasure G = 0"
+  assumes b: "finiteCFG G"
+  shows      "TermProperty G"
+proof-
+  from a and b have 0: "\<And> R. R \<in> (snd G) \<Longrightarrow> CountNonSingleTerminals R = 0"
+    using TermTerminate_Part14 bot_nat_0.not_eq_extremum by blast
+  have 1: "\<And> R a. CountNonSingleTerminals R = 0 \<Longrightarrow> (T a) \<in> set (snd R) \<longrightarrow> (snd R) = [T a]"
+    by (metis CountProperty2 Nil_is_append_conv append_self_conv2 eq_snd_iff 
+        in_set_conv_decomp_last zero_eq_add_iff_both_eq_0 zero_neq_one)
+  from 0 and 1 show ?thesis
+    apply (unfold TermProperty_def) 
+    by (simp add: "1")
+qed
+
+lemma TermTerminate_Part16:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG (transformTerm Gen G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformTermTest G1 N G2 \<Longrightarrow> finiteRel G1 G2"
+    by (simp add: finiteRel_def TermFinite)
+  from a b 0 have 1: "finiteRel G1 (transformTerm Gen G1)"
+    using TermTerminate_Part12 apply (rule_tac Gen="Gen" in TermTerminate_Part12) 
+    apply blast
+    apply blast
+    apply blast
+    using rtransFiniteRel by blast
+  from 1 and b show ?thesis 
+    by (unfold finiteRel_def, auto)
+qed
 
 theorem verifyTerm:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "TermProperty (transformTerm Gen G1) \<and> \<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  shows      "finiteCFG (transformTerm Gen G1) \<and> TermProperty (transformTerm Gen G1) \<and> \<lbrakk>transformTerm Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
 proof-
   from a and b have 0: "transformTerm_dom (Gen, G1)"
     by (simp add: TermTerminate_Part10)
@@ -3038,9 +3124,13 @@ proof-
     apply (induct rule: transformTerm.pinduct)
     by (simp add: transformTerm.psimps)
   from 0 have 2: "\<lbrakk>(transformTerm Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
-    by (simp add: TermTerminate_Part12 a b)
+    by (simp add: TermTerminate_Part13 a b)
+  from b have 3: "finiteCFG (transformTerm Gen G1)"
+    by (simp add: TermTerminate_Part16 a)
+  from 3 and 1 have 4: "TermProperty (transformTerm Gen G1)"
+    using TermTerminate_Part15 by blast
   show ?thesis
-    by (simp add: "1" "2" TermProperty_def)
+    using "2" "3" "4" by fastforce
 qed
 
 definition CountMoreThanTwoLists :: "('n, 't) Rule \<Rightarrow> nat"
@@ -3056,7 +3146,7 @@ definition BinMeasure :: "('n, 't) CFG \<Rightarrow> nat"
   where "BinMeasure G = BinRuleMeasure (snd G)"
 
 lemma BinTerminate_Part1:
-  assumes x: "transformBinSingle G1 N G2"
+  assumes x: "transformBinTest G1 N G2"
   assumes y: "finiteCFG G1"
   shows      "BinMeasure G1 > BinMeasure G2"
 proof-
@@ -3071,7 +3161,7 @@ proof-
                   \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
                   \<and> NT(N) \<notin> NonTerminals(G1)"
           (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
-    by (simp add: transformBinSingle_def)
+    by (simp add: transformBinTest_def)
   then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
   from r have a: "R1 = (S1, L @ a # R)" by auto
   from r have b: "R2 = (S1, L @ [NT N])" by auto
@@ -3163,7 +3253,7 @@ qed
 lemma BinTerminate_Part5:
   assumes a: "BinMeasure G1 > 0"
   assumes b: "(NT N) \<notin> NonTerminals G1"
-  shows      "\<exists> G2. transformBinSingle G1 N G2"
+  shows      "\<exists> G2. transformBinTest G1 N G2"
 proof-
   from a have 0: "\<exists> R. R \<in> snd G1 \<and> CountMoreThanTwoLists R > 0" (is "\<exists> R. ?P R")
     apply (unfold BinMeasure_def) 
@@ -3178,7 +3268,7 @@ proof-
     using prod.collapse by blast
   then obtain Rs1 S where 5: "?P Rs1 S" by blast
   from 5 and 3 and b show ?thesis
-    apply (unfold transformBinSingle_def , rule_tac x="(S, ({(S1, l @ [NT N]), (N, a # r)} \<union> (Rs1-{R})))" in exI, simp
+    apply (unfold transformBinTest_def , rule_tac x="(S, ({(S1, l @ [NT N]), (N, a # r)} \<union> (Rs1-{R})))" in exI, simp
           , rule_tac x="S" in exI, simp,rule_tac x="S1" in exI, simp, rule_tac x="rhs" in exI, simp,
           rule_tac x="l @ [NT N]" in exI, simp, rule_tac x="Rs1" in exI, simp) 
     using "1" by fastforce
@@ -3186,12 +3276,12 @@ qed
 
 function (domintros) transformBin :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
   where "transformBin Gen G1 = (if (BinMeasure G1 = 0) then G1 else 
-                                (transformBin Gen (SOME G2. transformBinSingle G1 (Gen G1) G2)))"
+                                (transformBin Gen (SOME G2. transformBinTest G1 (Gen G1) G2)))"
   by pat_completeness auto
 
 lemma BinTerminate_Part7:
   assumes a: "finiteCFG G"
-  shows      "\<forall> G2. (transformBinSingle G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> BinMeasure G2 < BinMeasure G)"
+  shows      "\<forall> G2. (transformBinTest G (Gen G) G2 \<longrightarrow> finiteCFG G2 \<and> BinMeasure G2 < BinMeasure G)"
 proof-
   from a show ?thesis 
     by (simp add: BinFinite BinTerminate_Part1)
@@ -3200,7 +3290,7 @@ qed
 lemma BinTerminate_Part8:
   assumes a: "BinMeasure G > 0"
   assumes b: "NewNTGen Gen"
-  shows      "\<exists> G2. (transformBinSingle G (Gen G) G2)"
+  shows      "\<exists> G2. (transformBinTest G (Gen G) G2)"
 proof-
   from b have 0: "(NT (Gen G)) \<notin> NonTerminals G"
     using NewNTGen_def by blast
@@ -3226,15 +3316,15 @@ proof-
     assume y: "n \<noteq> 0"
     from y have x: "n > 0" by auto
     from b and x have 0: "BinMeasure G > 0" by auto
-    have 1: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
+    have 1: "\<And> G2. transformBinTest G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
       using BinTerminate_Part7 and BinTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformBinSingle G (Gen G) G2"
+    have 2: "\<exists> G2. transformBinTest G (Gen G) G2"
       using BinTerminate_Part7 and BinTerminate_Part8 
       using "0" d by blast
-    from a and 1 and d have 3: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> transformBin_dom (Gen, G2)"
+    from a and 1 and d have 3: "\<And> G2. transformBinTest G (Gen G) G2 \<Longrightarrow> transformBin_dom (Gen, G2)"
       by blast
-    from 3 and 2 have 4: "transformBin_dom (Gen, (SOME G2. transformBinSingle G (Gen G) G2))"
+    from 3 and 2 have 4: "transformBin_dom (Gen, (SOME G2. transformBinTest G (Gen G) G2))"
       by (simp add: someI_ex)
     from 0 and 4 show ?thesis
       by (meson transformBin.domintros)
@@ -3257,60 +3347,130 @@ proof-
 qed
 
 lemma BinTerminate_Part11:
-  assumes d: "NewNTGen Gen"
-  assumes a: "\<And> G. (BinMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  fixes      f :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  fixes      Gen :: "('n, 't) NTGen"
+  assumes a: "\<And> G. (BinMeasure G < n \<and> finiteCFG G) \<Longrightarrow> f G (transformBin Gen G)"
   assumes b: "BinMeasure G = n"
   assumes c: "finiteCFG G"
-  shows      "\<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes d: "NewNTGen Gen"
+  assumes e: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes h: "reflp f \<and> transp f"
+  shows      "f G (transformBin Gen G)"
 proof-
-  show ?thesis
+ show ?thesis
   proof cases
     assume x: "n = 0"
     from x  and b have 0: "transformBin Gen G = G"
       by (simp add: BinTerminate_Part10 c d transformBin.psimps)
     from 0 show ?thesis
-      by simp
+      by(simp add: h reflpD)
   next
     assume y: "\<not> (n = 0)"
     from y have x: "n > 0" by auto
     from b and x have 0: "BinMeasure G > 0" by auto
-    have 1: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
+    have 1: "\<And> G2. transformBinTest G (Gen G) G2 \<Longrightarrow> BinMeasure G2 < n  \<and> finiteCFG G2"
       using BinTerminate_Part7 and BinTerminate_Part8 
       using b c d by blast
-    have 2: "\<exists> G2. transformBinSingle G (Gen G) G2"
+    have 2: "\<exists> G2. transformBinTest G (Gen G) G2"
       using BinTerminate_Part7 and BinTerminate_Part8 
       using "0" d by blast
-    have 3: "\<And> G2. transformBinSingle G (Gen G) G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-      by (simp add: verifyTransformBin)  
-    from 3 and 2 have 4: "\<lbrakk>(SOME G2. transformBinSingle G (Gen G) G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    from e have 3: "\<And> G2. transformBinTest G (Gen G) G2 \<Longrightarrow> f G G2"
+      by blast 
+    from 3 and 2 have 4: "f G ((SOME G2. transformBinTest G (Gen G) G2))"
       by (metis someI_ex)
     show ?thesis
-      by (metis "1" "2" "4" BinTerminate_Part10 a c d someI_ex transformBin.psimps)
+      by (metis (no_types, lifting) "0" "2" "4" BinTerminate_Part10 
+          BinTerminate_Part7 a b c d h someI_ex transformBin.psimps transpE)
   qed
 qed
 
 lemma BinTerminate_Part12:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "\<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  assumes c: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes h: "reflp f \<and> transp f"
+  shows      "f G1 (transformBin Gen G1)"
 proof-
-  have 0: "\<exists> n. BinMeasure G1 = n" (is "\<exists> n. ?P n")
+have 0: "\<exists> n. BinMeasure G1 = n" (is "\<exists> n. ?P n")
     by auto 
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> G. finiteCFG G \<and> BinMeasure G = n \<Longrightarrow> \<lbrakk>transformBin Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  have 2: "\<And> G. finiteCFG G \<and> BinMeasure G = n \<Longrightarrow> f G (transformBin Gen G)"
     apply (induction n rule: less_induct)
-    using BinTerminate_Part11 a by blast
+    using BinTerminate_Part11 a c 
+    by (metis h)
   from 2 show ?thesis
     by (simp add: "1" b)
 qed
 
+lemma BinTerminate_Part13:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "\<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+proof-
+  have 0: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> \<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+    by (simp add: verifyTransformBinTest)
+  from a b 0 show ?thesis
+    using BinTerminate_Part12 apply (rule_tac Gen="Gen" in BinTerminate_Part12, simp)
+    apply blast
+    apply (simp add: "0")
+    by (simp add: reflpI transpI)
+qed
+
 definition BinProperty :: "('n, 't) CFG \<Rightarrow> bool"
-  where "BinProperty G \<equiv> (BinMeasure G = 0)"
+  where "BinProperty G \<equiv> (\<forall> R. (R \<in> (snd G) \<longrightarrow> length (snd R) \<le> 2 ))"
+
+lemma BinTerminate_Part14:
+  assumes a: "R \<in> (snd G)"
+  assumes b: "CountMoreThanTwoLists R > 0"
+  assumes c: "finiteCFG G"
+  shows      "BinMeasure G > 0"
+proof-
+  have 0: "\<And> Rs. comp_fun_commute_on Rs BinFold "
+    apply (unfold comp_fun_commute_on_def BinFold_def) 
+    by fastforce
+  from a and 0 have 1: "Finite_Set.fold BinFold 0 (snd G) = BinFold R (Finite_Set.fold BinFold 0 ((snd G) - {R}))"
+    by (metis c finiteCFG_def foldRemove)
+  from 1 and b have 2: "Finite_Set.fold BinFold 0 (snd G) > 0"
+    by (unfold BinFold_def, simp)
+  from 2 show ?thesis
+    by (unfold BinMeasure_def BinRuleMeasure_def, auto)
+qed
+
+lemma BinTerminate_Part15:
+  assumes a: "BinMeasure G = 0"
+  assumes b: "finiteCFG G"
+  shows      "BinProperty G"
+proof-
+  from a and b have 0: "\<And> R. R \<in> (snd G) \<Longrightarrow> CountMoreThanTwoLists R = 0"
+    using BinTerminate_Part14 bot_nat_0.not_eq_extremum by blast
+  have 1: "\<And> R. CountMoreThanTwoLists R = 0 \<Longrightarrow> length (snd R) \<le> 2 "
+    by (metis CountMoreThanTwoLists_def diff_is_0_eq dual_order.strict_iff_not)
+  from 0 and 1 show ?thesis
+    apply (unfold BinProperty_def) 
+    by (simp add: "1")
+qed
+
+lemma BinTerminate_Part16:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG (transformBin Gen G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> finiteRel G1 G2"
+    by (simp add: finiteRel_def BinFinite)
+  from a b 0 have 1: "finiteRel G1 (transformBin Gen G1)"
+    using BinTerminate_Part12 apply (rule_tac Gen="Gen" in BinTerminate_Part12) 
+    apply blast
+    apply blast
+    apply blast
+    using rtransFiniteRel by blast
+  from 1 and b show ?thesis 
+    by (unfold finiteRel_def, auto)
+qed
 
 theorem verifyBin:
   assumes a: "NewNTGen Gen"
   assumes b: "finiteCFG G1"
-  shows      "BinProperty (transformBin Gen G1) \<and> \<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  shows      "finiteCFG (transformBin Gen G1) \<and>  BinProperty (transformBin Gen G1) \<and> \<lbrakk>transformBin Gen G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
 proof-
   from a and b have 0: "transformBin_dom (Gen, G1)"
     by (simp add: BinTerminate_Part10)
@@ -3318,9 +3478,13 @@ proof-
     apply (induct rule: transformBin.pinduct)
     by (simp add: transformBin.psimps)
   from 0 have 2: "\<lbrakk>(transformBin Gen G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
-    by (simp add: BinTerminate_Part12 a b)
+    by (simp add: BinTerminate_Part13 a b)
+  from b have 3: "finiteCFG (transformBin Gen G1)"
+    by (simp add: BinTerminate_Part16 a)
+  from 3 and 1 have 4: "BinProperty (transformBin Gen G1)"
+    using BinTerminate_Part15 by blast
   show ?thesis
-    by (simp add: "1" "2" BinProperty_def)
+    using "2" "3" "4" by fastforce
 qed
 
 definition UnitFold :: "('n, 't) RuleSet \<Rightarrow> 'n \<Rightarrow> nat \<Rightarrow> nat"
@@ -3333,7 +3497,7 @@ definition UnitMeasure :: "('n, 't) CFG \<Rightarrow> nat"
   where "UnitMeasure G = UnitRuleMeasure (snd G)"
 
 lemma UnitTerminate_Part1:
-  assumes x: "transformUnitSingle G1 N G2"
+  assumes x: "transformUnitTest G1 N G2"
   assumes y: "finiteCFG G1"
   shows      "UnitMeasure G1 > UnitMeasure G2"
 proof-
@@ -3343,7 +3507,7 @@ proof-
                   \<and> HasUnitProductionRule Rs1 N
                   \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
           (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
-    by (simp add: transformUnitSingle_def)
+    by (simp add: transformUnitTest_def)
   then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
   from r have a: "G1 = (S, Rs1)" by auto
   from r have b: "G2 = (S, Rs2)" by auto
@@ -3451,23 +3615,23 @@ qed
 
 lemma UnitTerminate_Part5:
   assumes a: "UnitMeasure G1 > 0"
-  shows      "\<exists> A G2. transformUnitSingle G1 A G2"
+  shows      "\<exists> A G2. transformUnitTest G1 A G2"
 proof-
   from a have 0: "\<exists> N. HasUnitProductionRule (snd G1) N" (is "\<exists> N. ?P N")
     by (metis UnitMeasure_def UnitTerminate_Part4)
   then obtain N where 1: "?P N" by blast
   from 1 show ?thesis
-    by (unfold transformUnitSingle_def, rule_tac x="N" in exI, simp, rule_tac x="fst G1" in exI, simp, rule_tac x="snd G1" in exI, simp)
+    by (unfold transformUnitTest_def, rule_tac x="N" in exI, simp, rule_tac x="fst G1" in exI, simp, rule_tac x="snd G1" in exI, simp)
 qed
 
 function (domintros) transformUnit :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
   where "transformUnit G1 = (if (UnitMeasure G1 = 0) then G1 else 
-                            (transformUnit (SOME G2. \<exists> A. transformUnitSingle G1 A G2)))"
+                            (transformUnit (SOME G2. \<exists> A. transformUnitTest G1 A G2)))"
   by pat_completeness auto
 
 lemma UnitTerminate_Part7:
   assumes a: "finiteCFG G"
-  shows      "\<forall> A G2. (transformUnitSingle G A G2 \<longrightarrow> finiteCFG G2 \<and> UnitMeasure G2 < UnitMeasure G)"
+  shows      "\<forall> A G2. (transformUnitTest G A G2 \<longrightarrow> finiteCFG G2 \<and> UnitMeasure G2 < UnitMeasure G)"
 proof-
   from a show ?thesis 
     by (simp add: UnitFinite UnitTerminate_Part1)
@@ -3491,13 +3655,13 @@ proof-
     assume y: "n \<noteq> 0"
     from y have x: "n > 0" by auto
     from b and x have 0: "UnitMeasure G > 0" by auto
-    have 1: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> (UnitMeasure G2 < n  \<and> finiteCFG G2)"
+    have 1: "\<And> A G2. transformUnitTest G A G2 \<Longrightarrow> (UnitMeasure G2 < n  \<and> finiteCFG G2)"
       using UnitTerminate_Part7 and c and b by blast
-    have 2: "\<exists> A G2. transformUnitSingle G A G2" 
+    have 2: "\<exists> A G2. transformUnitTest G A G2" 
       using UnitTerminate_Part5 and 0 by blast
-    from 1 and a have 3: "\<And> A G2. (transformUnitSingle G A G2 \<Longrightarrow> transformUnit_dom G2)"
+    from 1 and a have 3: "\<And> A G2. (transformUnitTest G A G2 \<Longrightarrow> transformUnit_dom G2)"
       by blast
-    from 3 and 2 have 4: "transformUnit_dom (SOME G2. \<exists> A. transformUnitSingle G A G2)"
+    from 3 and 2 have 4: "transformUnit_dom (SOME G2. \<exists> A. transformUnitTest G A G2)"
       by (smt (verit) someI_ex)
     from 0 and 4 show ?thesis
       by (metis transformUnit.domintros)
@@ -3519,57 +3683,119 @@ proof-
 qed
 
 lemma UnitTerminate_Part11:
-  fixes      G :: "('n, 't) CFG"
-  assumes a: "\<And> G :: ('n, 't) CFG. (UnitMeasure G < n \<and> finiteCFG G) \<Longrightarrow> \<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  fixes      f :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  fixes      Gen :: "('n, 't) NTGen"
+  assumes a: "\<And> G. (UnitMeasure G < n \<and> finiteCFG G) \<Longrightarrow> f G (transformUnit G)"
   assumes b: "UnitMeasure G = n"
   assumes c: "finiteCFG G"
-  shows      "\<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  assumes e: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes h: "reflp f \<and> transp f"
+  shows      "f G (transformUnit G)"
 proof-
-  show ?thesis
+   show ?thesis
   proof cases
     assume x: "n = 0"
     from x  and b have 0: "transformUnit G = G"
       by (simp add: UnitTerminate_Part10 c transformUnit.psimps)
     from 0 show ?thesis
-      by simp
+      by (simp add: h reflpD)
   next
     assume y: "\<not> (n = 0)"
     from y have x: "n > 0" by auto
     from b and x have 0: "UnitMeasure G > 0" by auto
-    have 1: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> UnitMeasure G2 < n  \<and> finiteCFG G2"
+    have 1: "\<And> A G2. transformUnitTest G A G2 \<Longrightarrow> UnitMeasure G2 < n  \<and> finiteCFG G2"
       using UnitTerminate_Part7 
       using b c by blast
-    have 2: "\<exists> G2 A. transformUnitSingle G A G2" 
+    have 2: "\<exists> G2 A. transformUnitTest G A G2" 
       using UnitTerminate_Part5 and 0 by blast
-    have 3: "\<And> A G2. transformUnitSingle G A G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
-      by (simp add: verifyUnitTransform)  
-    from 3 and 2 have 4: "\<lbrakk>(SOME G2. \<exists> A. transformUnitSingle G A G2)\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    have 3: "\<And> A G2. transformUnitTest G A G2 \<Longrightarrow> f G G2"
+      by (simp add: e)  
+    from 3 and 2 have 4: "f G (SOME G2. \<exists> A. transformUnitTest G A G2)"
       by (smt (verit) someI_ex)
     from 0 and 4 show ?thesis
-      by (smt (z3) "2" Eps_cong UnitTerminate_Part10 UnitTerminate_Part7 a b c someI_ex transformUnit.psimps)
+      by (smt (verit) "2" UnitTerminate_Part10 UnitTerminate_Part7 a b c e h someI_ex
+            some_equality transformUnit.psimps transpE y)
   qed
 qed
 
 lemma UnitTerminate_Part12:
-  assumes b: "finiteCFG G1"
-  shows      "\<lbrakk>transformUnit G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  assumes a: "finiteCFG G1"
+  assumes b: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> f G1 G2"
+  assumes h: "reflp f \<and> transp f"
+  shows      "f G1 (transformUnit G1)"
 proof-
   have 0: "\<exists> n. UnitMeasure G1 = n" (is "\<exists> n. ?P n")
     by auto 
   then obtain n where 1: "?P n" by blast
-  have 2: "\<And> G. finiteCFG G \<and> UnitMeasure G = n \<Longrightarrow> \<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+  have 2: "\<And> G. finiteCFG G \<and> UnitMeasure G = n \<Longrightarrow> f G (transformUnit G)"
     apply (induction n rule: less_induct)
-    using UnitTerminate_Part11 by blast
+    using UnitTerminate_Part11
+    by (metis b h)
   from 2 show ?thesis
-    using "1" b by blast
+    using "1" a by blast
+qed
+
+lemma UnitTerminate_Part13:
+  assumes b: "finiteCFG G"
+  shows      "\<lbrakk>transformUnit G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  have 0: "\<And> G N G2. transformUnitTest G N G2 \<Longrightarrow> \<lbrakk>G\<rbrakk> = \<lbrakk>G2\<rbrakk>"
+    by (simp add: verifyTransformUnitTest)
+  from 0 b show ?thesis
+    using UnitTerminate_Part12 
+    by (metis equivLang_def reflpI transp_def)
 qed
 
 definition UnitProperty :: "('n, 't) CFG \<Rightarrow> bool"
-  where "UnitProperty G \<equiv> (UnitMeasure G = 0)"
+  where "UnitProperty G \<equiv> \<forall> R. (R \<in> (snd G) \<longrightarrow> \<not> IsUnitProductionRule R)"
+
+lemma UnitTerminate_Part14:
+  assumes a: "N \<in> fst `(snd G)"
+  assumes b: "HasUnitProductionRule (snd G) N"
+  assumes c: "finiteCFG G"
+  shows      "UnitMeasure G > 0"
+proof-
+  have 0: "\<And> Rs. comp_fun_commute_on (fst ` Rs) (UnitFold Rs) "
+    apply (unfold comp_fun_commute_on_def UnitFold_def)
+    by (simp add: comp_def)
+  from a and 0 have 1: "Finite_Set.fold (UnitFold (snd G)) 0 (fst ` (snd G)) = (UnitFold (snd G)) N (Finite_Set.fold (UnitFold (snd G)) 0 (fst ` (snd G) - {N}))"
+    by (metis c finiteCFG_def finite_imageI foldRemove)
+  from 1 and b have 2: "Finite_Set.fold (UnitFold (snd G)) 0 (fst ` (snd G)) > 0"
+    by (unfold UnitFold_def, simp)
+  from 2 show ?thesis
+    by (unfold UnitMeasure_def UnitRuleMeasure_def, auto)
+qed
+
+lemma UnitTerminate_Part15:
+  assumes a: "UnitMeasure G = 0"
+  assumes b: "finiteCFG G"
+  shows      "UnitProperty G"
+proof-
+  from a and b have 0: "\<And> N. N \<in> fst ` (snd G) \<Longrightarrow> \<not> HasUnitProductionRule (snd G) N"
+    using UnitTerminate_Part14 bot_nat_0.not_eq_extremum by metis
+  have 1: "\<And> N. \<not> HasUnitProductionRule (snd G) N \<Longrightarrow> \<not> (\<exists>R. R \<in> (snd G) \<and> (fst R) = N \<and> IsUnitProductionRule R)"
+    by (unfold HasUnitProductionRule_def, auto)
+  from 0 and 1 show ?thesis
+    apply (unfold UnitProperty_def) 
+    by blast
+qed
+
+lemma UnitTerminate_Part16:
+  assumes b: "finiteCFG G1"
+  shows      "finiteCFG (transformUnit G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> finiteRel G1 G2"
+    by (simp add: finiteRel_def UnitFinite)
+  from b 0 have 1: "finiteRel G1 (transformUnit G1)"
+    using UnitTerminate_Part12 
+    using "0" b rtransFiniteRel by blast
+  from 1 and b show ?thesis 
+    by (unfold finiteRel_def, auto)
+qed
 
 theorem verifyUnit:
   assumes b: "finiteCFG G1"
-  shows      "UnitProperty (transformUnit G1) \<and> \<lbrakk>transformUnit G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
+  shows      "finiteCFG (transformUnit G1) \<and> UnitProperty (transformUnit G1) \<and> \<lbrakk>transformUnit G1\<rbrakk> = \<lbrakk>G1\<rbrakk>"
 proof-
   from  b have 0: "transformUnit_dom G1"
     by (simp add: UnitTerminate_Part10)
@@ -3577,9 +3803,451 @@ proof-
     apply (induct rule: transformUnit.pinduct)
     by (simp add: transformUnit.psimps)
   from 0 have 2: "\<lbrakk>(transformUnit G1)\<rbrakk> = \<lbrakk>G1\<rbrakk>"
-    by (simp add: UnitTerminate_Part12 b)
+    by (simp add: UnitTerminate_Part13 b)
+  from b have 3: "finiteCFG (transformUnit G1)"
+    by (simp add: UnitTerminate_Part16)
+  from 3 and 1 have 4: "UnitProperty (transformUnit G1)"
+    using UnitTerminate_Part15 by blast
   show ?thesis
-    by (simp add: "1" "2" UnitProperty_def)
+    using "2" "3" "4" by fastforce
 qed
+
+definition StartProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "StartProperty G \<equiv> (\<forall> R. R \<in> (snd G) \<longrightarrow> (NT (fst G)) \<notin> set (snd R))"
+
+definition DelProperty :: "('n, 't) CFG \<Rightarrow> bool"
+  where "DelProperty G \<equiv> (\<forall> R. R \<in> (snd G) \<longrightarrow> (fst R) \<noteq> (fst G) \<longrightarrow> (snd R) \<noteq> [])"
+
+definition transformStart :: "('n, 't) NTGen \<Rightarrow>('n, 't) CFG \<Rightarrow> ('n, 't) CFG" 
+  where "transformStart Gen G1 \<equiv> (SOME G2. transformStartTest G1 (Gen G1) G2)"
+
+definition transformDel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG" 
+  where "transformDel G1 \<equiv> (SOME G2. transformDelTest G1 G2)"
+
+lemma StartProp_Part1:
+  assumes a: "transformStartTest G1 N G2"
+  shows      "StartProperty G2"
+proof-
+  from a show ?thesis
+    by (unfold transformStartTest_def StartProperty_def NonTerminals_def NTInRule_def, auto)
+qed
+
+lemma DelProp_Part1:
+  assumes a: "transformDelTest G1 G2"
+  shows      "DelProperty G2"
+proof-
+  from a show ?thesis
+    by (unfold transformDelTest_def RemoveAllEpsilonProds_def DelProperty_def, auto)
+qed
+
+lemma StartProp_Part2:
+  assumes a: "NewNTGen Gen"
+  shows      "StartProperty (transformStart Gen G1)"
+proof-
+  have 0: "\<And> N G1. (NT N) \<notin> NonTerminals G1 \<Longrightarrow> \<exists> G2. transformStartTest G1 N G2"
+    by (unfold transformStartTest_def, auto)
+  from a and 0 have 1: "\<exists> G2. transformStartTest G1 (Gen G1) G2"
+    apply (unfold NewNTGen_def) 
+    by (meson "0")
+  from StartProp_Part1 and 1 show ?thesis
+    apply (unfold transformStart_def) 
+    by (smt (verit, ccfv_threshold) StartProp_Part1 someI_ex)
+qed
+
+lemma DelProp_Part2:
+  shows      "DelProperty (transformDel G1)"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G1 G2"
+    by blast
+  from 1 and DelProp_Part1 show ?thesis
+    apply (unfold transformDel_def)
+    by (smt (verit, ccfv_threshold) DelProp_Part1 someI_ex)
+qed
+
+lemma TermPreservesStart_Part1:
+  assumes a: "StartProperty G1"
+  assumes b: "transformTermTest G1 N G2"
+  shows      "StartProperty G2"
+proof-
+  from a and b show ?thesis
+    apply (unfold StartProperty_def transformTermTest_def NonTerminals_def NTInRule_def)
+    using CollectI Diff_iff Un_iff empty_iff fst_conv insert_iff list.simps(15) by fastforce
+qed
+
+definition StartPropRel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "StartPropRel G1 G2 \<equiv> (StartProperty G1 \<longrightarrow> StartProperty G2)"
+
+lemma StartPropRel_rtrans: 
+  shows "transp StartPropRel \<and> reflp StartPropRel"
+proof-
+  show ?thesis
+    apply (unfold StartPropRel_def) 
+    by (metis (mono_tags, lifting) reflpI transpI)
+qed
+
+lemma TermPreservesStart_Part2:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  assumes c: "StartProperty G1"
+  shows      "StartProperty (transformTerm Gen G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformTermTest G1 N G2 \<Longrightarrow> StartPropRel G1 G2"
+    by (simp add: StartPropRel_def TermPreservesStart_Part1)
+  from a b 0 have 1: "StartPropRel G1 (transformTerm Gen G1)"
+    using TermTerminate_Part12 
+    using StartPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold StartPropRel_def, auto)
+qed
+
+lemma BinPreservesStart_Part1:
+  assumes a: "StartProperty G1"
+  assumes b: "transformBinTest G1 N G2"
+  shows      "StartProperty G2"
+proof-
+  from a and b show ?thesis
+    apply (unfold StartProperty_def transformBinTest_def NonTerminals_def NTInRule_def)
+    using CollectI Diff_iff Un_iff empty_iff fst_conv insert_iff list.simps(15) by fastforce
+qed
+
+lemma BinPreservesStart_Part2:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  assumes c: "StartProperty G1"
+  shows      "StartProperty (transformBin Gen G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> StartPropRel G1 G2"
+    by (simp add: StartPropRel_def BinPreservesStart_Part1)
+  from a b 0 have 1: "StartPropRel G1 (transformBin Gen G1)"
+    using BinTerminate_Part12 
+    using StartPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold StartPropRel_def, auto)
+qed
+
+lemma DelPreservesStart_Part1:
+  assumes a: "StartProperty G1"
+  assumes b: "transformDelTest G1 G2"
+  shows      "StartProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and> set (snd R) \<subseteq> set (snd R1)"
+    apply (unfold transformDelTest_def RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    using DelFinite_Part3 apply (unfold RuleElementListSubset_def) 
+    by fastforce
+  from 0 and a show ?thesis
+    apply (unfold StartProperty_def) 
+    by (metis b fst_conv subset_code(1) transformDelTest_def) 
+qed
+
+lemma DelPreservesStart_Part2:
+  assumes a: "StartProperty G1"
+  shows      "StartProperty (transformDel G1)"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G1 G2"
+    by blast
+  from a and DelPreservesStart_Part1 show ?thesis 
+    apply (unfold transformDel_def)
+    by (smt (verit, best) "1" DelPreservesStart_Part1 someI_ex)
+qed
+
+lemma UnitPreservesStart_Part1:
+  assumes a: "StartProperty G1"
+  assumes b: "transformUnitTest G1 A G2"
+  shows      "StartProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and> (snd R) = (snd R1)"
+    by (unfold transformUnitTest_def NewUnitTransRuleSet_def, auto)
+  from 0 and a show ?thesis
+    apply (unfold StartProperty_def)
+    by (metis b fst_conv transformUnitTest_def)
+qed
+
+lemma UnitPreservesStart_Part2:
+  assumes b: "finiteCFG G1"
+  assumes c: "StartProperty G1"
+  shows      "StartProperty (transformUnit G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> StartPropRel G1 G2"
+    by (simp add: StartPropRel_def UnitPreservesStart_Part1)
+  from b 0 have 1: "StartPropRel G1 (transformUnit  G1)"
+    using UnitTerminate_Part12 
+    using StartPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold StartPropRel_def, auto)
+qed
+
+definition TermPropRel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "TermPropRel G1 G2 \<equiv> (TermProperty G1 \<longrightarrow> TermProperty G2)"
+
+lemma TermPropRel_rtrans: 
+  shows "transp TermPropRel \<and> reflp TermPropRel"
+proof-
+  show ?thesis
+    apply (unfold TermPropRel_def) 
+    by (metis (mono_tags, lifting) reflpI transpI)
+qed
+
+lemma BinPreservesTerm_Part1:
+  assumes x: "TermProperty G1"
+  assumes y: "transformBinTest G1 N G2"
+  shows      "TermProperty G2"
+proof-
+  from y have 0: "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. 
+                  (S, Rs1) = G1 
+                  \<and> R1 = (S1, L @ a # R)
+                  \<and> R2 = (S1, L @ [NT N])
+                  \<and> R3 = (N, a # R)  
+                  \<and> L \<noteq> [] \<and> R \<noteq> []
+                  \<and> (S, Rs2) = G2 
+                  \<and> R1 \<in> Rs1
+                  \<and> Rs2 = {R2, R3} \<union> (Rs1 - {R1})
+                  \<and> NT(N) \<notin> NonTerminals(G1)"
+          (is "\<exists> S R1 R2 R3 Rs1 Rs2 S1 L R a. ?P S R1 R2 R3 Rs1 Rs2 S1 L R a")
+    by (simp add: transformBinTest_def)
+  then obtain S R1 R2 R3 Rs1 Rs2 S1 L R a where r: "?P S R1 R2 R3 Rs1 Rs2 S1 L R a" by blast
+  from r have a: "R1 = (S1, L @ a # R)" by auto
+  from r have b: "R2 = (S1, L @ [NT N])" by auto
+  from r have c: "R3 = (N, a # R)" by auto
+  from r have d: "L \<noteq> [] \<and> R \<noteq> []" by auto
+  from r have e: "G1 = (S, Rs1)" by auto
+  from r have f: "G2 = (S, Rs2)" by auto
+  from r have i: "R1 \<in> Rs1" by auto
+  from r have j: "Rs2 = {R2, R3} \<union> (Rs1 - {R1})" by auto
+  from r have k: "NT N \<notin> NonTerminals G1" by auto
+  from a and x and d and e have 1: "\<And> t. (T t) \<notin> set (L @ a # R)"
+    apply (unfold TermProperty_def) 
+    by (metis add_is_1 i length_0_conv length_Cons length_append list.distinct(1) snd_conv)
+  from 1 have 2: "\<And> t. (T t) \<notin> set (a # R)" by auto
+  from 1 have 3: "\<And> t. (T t) \<notin> set (L @ [NT N])" by auto
+  from 1 and 2 and 3 and x show ?thesis
+    apply (unfold TermProperty_def) 
+    using r by auto
+qed
+
+lemma BinPreservesTerm_Part2:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G1"
+  assumes c: "TermProperty G1"
+  shows      "TermProperty (transformBin Gen G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformBinTest G1 N G2 \<Longrightarrow> TermPropRel G1 G2"
+    by (simp add: TermPropRel_def BinPreservesTerm_Part1)
+  from a b 0 have 1: "TermPropRel G1 (transformBin Gen G1)"
+    using BinTerminate_Part12 
+    using TermPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold TermPropRel_def, auto)
+qed
+
+lemma DelPreservesTerm_Part1:
+  assumes a: "TermProperty G1"
+  assumes b: "transformDelTest G1 G2"
+  shows      "TermProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and> set (snd R) \<subseteq> set (snd R1) \<and> length (snd R) \<le> length (snd R1)"
+    apply (unfold transformDelTest_def RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    using DelFinite_Part3 DelFinite_Part6 apply (unfold RuleElementListSubset_def RuleElementListSize_def) 
+    by fastforce
+  from 0 and a show ?thesis
+    apply (unfold TermProperty_def) 
+    by (smt (verit, ccfv_threshold) add_Suc_shift add_eq_self_zero gr0_conv_Suc le_Suc_eq length_Cons 
+        length_greater_0_conv length_pos_if_in_set less_le_not_le list.set_cases list.size(3) plus_nat.add_0 subset_eq)
+qed
+
+lemma DelPreservesTerm_Part2:
+  assumes a: "TermProperty G1"
+  shows      "TermProperty (transformDel G1)"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G1 G2"
+    by blast
+  from a and DelPreservesTerm_Part1 show ?thesis 
+    apply (unfold transformDel_def)
+    by (smt (verit, best) "1" DelPreservesTerm_Part1 someI_ex)
+qed
+
+lemma UnitPreservesTerm_Part1:
+  assumes a: "TermProperty G1"
+  assumes b: "transformUnitTest G1 A G2"
+  shows      "TermProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and> (snd R) = (snd R1)"
+    by (unfold transformUnitTest_def NewUnitTransRuleSet_def, auto)
+  from 0 and a show ?thesis
+    apply (unfold TermProperty_def)
+    by (metis)
+qed
+
+lemma UnitPreservesTerm_Part2:
+  assumes b: "finiteCFG G1"
+  assumes c: "TermProperty G1"
+  shows      "TermProperty (transformUnit G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> TermPropRel G1 G2"
+    by (simp add: TermPropRel_def UnitPreservesTerm_Part1)
+  from b 0 have 1: "TermPropRel G1 (transformUnit  G1)"
+    using UnitTerminate_Part12 
+    using TermPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold TermPropRel_def, auto)
+qed
+
+definition BinPropRel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "BinPropRel G1 G2 \<equiv> (BinProperty G1 \<longrightarrow> BinProperty G2)"
+
+lemma BinPropRel_rtrans: 
+  shows "transp BinPropRel \<and> reflp BinPropRel"
+proof-
+  show ?thesis
+    apply (unfold BinPropRel_def) 
+    by (metis (mono_tags, lifting) reflpI transpI)
+qed
+
+lemma DelPreservesBin_Part1:
+  assumes a: "BinProperty G1"
+  assumes b: "transformDelTest G1 G2"
+  shows      "BinProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and>  length (snd R) \<le> length (snd R1)"
+    apply (unfold transformDelTest_def RemoveAllEpsilonProds_def DelAllNullableNTsFromRules_def DelNullableNTsFromRule_def)
+    using DelFinite_Part6 apply (unfold RuleElementListSize_def) 
+    by fastforce
+  from 0 and a show ?thesis
+    apply (unfold BinProperty_def) 
+    using dual_order.trans by blast
+qed
+
+lemma DelPreservesBin_Part2:
+  assumes a: "BinProperty G1"
+  shows      "BinProperty (transformDel G1)"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G1 G2"
+    by blast
+  from a and DelPreservesBin_Part1 show ?thesis 
+    apply (unfold transformDel_def)
+    by (smt (verit, best) "1" DelPreservesBin_Part1 someI_ex)
+qed
+
+lemma UnitPreservesBin_Part1:
+  assumes a: "BinProperty G1"
+  assumes b: "transformUnitTest G1 A G2"
+  shows      "BinProperty G2"
+proof-
+  from b have 0: "\<And> R. R \<in> (snd G2) \<Longrightarrow> \<exists> R1. R1 \<in> (snd G1) \<and> (snd R) = (snd R1)"
+    by (unfold transformUnitTest_def NewUnitTransRuleSet_def, auto)
+  from 0 and a show ?thesis
+    apply (unfold BinProperty_def)
+    by (metis)
+qed
+
+lemma UnitPreservesBin_Part2:
+  assumes b: "finiteCFG G1"
+  assumes c: "BinProperty G1"
+  shows      "BinProperty (transformUnit G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> BinPropRel G1 G2"
+    by (simp add: BinPropRel_def UnitPreservesBin_Part1)
+  from b 0 have 1: "BinPropRel G1 (transformUnit  G1)"
+    using UnitTerminate_Part12 
+    using BinPropRel_rtrans by blast
+  from 1 and c show ?thesis 
+    by (unfold BinPropRel_def, auto)
+qed
+
+definition DelStartPropRel :: "('n, 't) CFG \<Rightarrow> ('n, 't) CFG \<Rightarrow> bool"
+  where "DelStartPropRel G1 G2 \<equiv> (DelProperty G1 \<and> StartProperty G1 \<longrightarrow> DelProperty G2 \<and> StartProperty G2)"
+
+lemma DelStartPropRel_rtrans: 
+  shows "transp DelStartPropRel \<and> reflp DelStartPropRel"
+proof-
+  show ?thesis
+    apply (unfold DelStartPropRel_def) 
+    by (metis (mono_tags, lifting) reflpI transpI)
+qed
+
+lemma UnitPreservesDelStart_Part1:
+  assumes x: "DelProperty G1"
+  assumes y: "StartProperty G1"
+  assumes z: "transformUnitTest G1 N G2"
+  shows      "DelProperty G2"
+proof-
+  show ?thesis
+  proof (rule ccontr)
+    assume contr: "\<not> DelProperty G2"
+    from z have 0: "\<exists> S Rs1 Rs2. 
+                  (S, Rs1) = G1
+                  \<and> (S, Rs2) = G2
+                  \<and> HasUnitProductionRule Rs1 N
+                  \<and> Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)"
+          (is "\<exists> S Rs1 Rs2. ?P S Rs1 Rs2")
+    by (simp add: transformUnitTest_def)
+    then obtain S Rs1 Rs2 where r: "?P S Rs1 Rs2" by blast
+    from r have a: "G1 = (S, Rs1)" by auto
+    from r have b: "G2 = (S, Rs2)" by auto
+    from r have c: "HasUnitProductionRule Rs1 N" by auto
+    from r have d: "Rs2 = (Rs1 \<union> (NewUnitTransRuleSet N Rs1)) - (NTToNTSetForA N)" by auto
+    from contr have 1: "\<exists> A. (A, []) \<in> Rs2 \<and> A \<noteq> S" (is "\<exists> A. ?P A")
+      by (simp add: DelProperty_def b)
+    then obtain A where 2: "?P A" by blast
+    from d and a and x and 2 have 3: "(A, []) \<in> (NewUnitTransRuleSet N Rs1)" 
+      by (metis "2" DelProperty_def DiffD1 Un_iff fst_conv snd_conv)
+    from 3 have 4: "\<exists> B. (N, B) \<in>  NTToNTProductionSet Rs1 \<and> (B, []) \<in> Rs1" (is "\<exists> B. ?P B")
+      by (unfold NewUnitTransRuleSet_def, auto)
+    then obtain B where 5: "?P B" by blast
+    from 5 and x and a have 6: "B = S" 
+      by (simp add: DelProperty_def, auto)
+    from 6 and 5 have 7: "(N, S) \<in> NTToNTProductionSet Rs1"
+      by auto
+    from 7 and y and a show "False"
+      apply (unfold StartProperty_def NTToNTProductionSet_def, simp) 
+      by (metis (mono_tags, lifting) CollectD list.set_intros(1) old.prod.case tranclE)
+  qed
+qed
+
+lemma UnitPreservesDelStart_Part2:
+  assumes x: "DelProperty G1"
+  assumes y: "StartProperty G1"
+  assumes z: "transformUnitTest G1 N G2"
+  shows      "DelProperty G2 \<and> StartProperty G2"
+proof-
+  show ?thesis 
+    by (meson UnitPreservesDelStart_Part1 UnitPreservesStart_Part1 x y z)
+qed
+
+lemma UnitPreservesDelStart_Part3:
+  assumes a: "finiteCFG G1"
+  assumes b: "DelProperty G1"
+  assumes c: "StartProperty G1"
+  shows      "DelProperty (transformUnit G1) \<and> StartProperty (transformUnit G1)"
+proof-
+  have 0: "\<And> G1 N G2. transformUnitTest G1 N G2 \<Longrightarrow> DelStartPropRel G1 G2"
+    apply (simp add: DelStartPropRel_def UnitPreservesBin_Part2) 
+    by (meson UnitPreservesDelStart_Part1 UnitPreservesStart_Part1)
+  from 0 have 1: "DelStartPropRel G1 (transformUnit  G1)"
+    using UnitTerminate_Part12 
+    using DelStartPropRel_rtrans a by blast
+  from 1 and c and b show ?thesis 
+    by (unfold DelStartPropRel_def, auto)
+qed
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
