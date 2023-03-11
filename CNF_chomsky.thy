@@ -2382,7 +2382,7 @@ proof-
     by (metis prod.collapse)
 qed
 
-theorem verifyTransformDel: 
+theorem verifyTransformDelTest: 
   assumes a: "transformDelTest G1 G2"
   shows      "\<lbrakk>G1\<rbrakk> = \<lbrakk>G2\<rbrakk>"
 proof-
@@ -3854,6 +3854,36 @@ proof-
     by (smt (verit, ccfv_threshold) StartProp_Part1 someI_ex)
 qed
 
+lemma verifyStart:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G"
+  shows      "\<lbrakk>transformStart Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  have 0: "\<And> N G1. (NT N) \<notin> NonTerminals G1 \<Longrightarrow> \<exists> G2. transformStartTest G1 N G2"
+    by (unfold transformStartTest_def, auto)
+  from a and 0 have 1: "\<exists> G2. transformStartTest G (Gen G) G2"
+    apply (unfold NewNTGen_def) 
+    by (meson "0")
+  from StartProp_Part1 and 1 show ?thesis
+    apply (unfold transformStart_def) 
+    by (smt (verit, ccfv_SIG) someI_ex verifyTransformStartTest)
+qed
+
+lemma finiteStart:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G"
+  shows      "finiteCFG (transformStart Gen G)"
+proof-
+  have 0: "\<And> N G1. (NT N) \<notin> NonTerminals G1 \<Longrightarrow> \<exists> G2. transformStartTest G1 N G2"
+    by (unfold transformStartTest_def, auto)
+  from a and 0 have 1: "\<exists> G2. transformStartTest G (Gen G) G2"
+    apply (unfold NewNTGen_def) 
+    by (meson "0")
+  from StartProp_Part1 and 1 show ?thesis
+    apply (unfold transformStart_def) 
+    by (smt (verit, ccfv_SIG) StartFinite b some_eq_imp)
+qed
+
 lemma DelProp_Part2:
   shows      "DelProperty (transformDel G1)"
 proof-
@@ -3864,6 +3894,32 @@ proof-
   from 1 and DelProp_Part1 show ?thesis
     apply (unfold transformDel_def)
     by (smt (verit, ccfv_threshold) DelProp_Part1 someI_ex)
+qed
+
+lemma verifyDel:
+  assumes a: "finiteCFG G"
+  shows      "\<lbrakk>transformDel G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G G2"
+    by blast
+  from 1 show ?thesis
+    apply (unfold transformDel_def) 
+    by (smt (verit, ccfv_SIG) someI_ex verifyTransformDelTest)
+qed
+
+lemma finiteDel:
+  assumes b: "finiteCFG G"
+  shows      "finiteCFG (transformDel G)"
+proof-
+  have 0: "\<And> G1. \<exists> G2. transformDelTest G1 G2"
+    by (unfold transformDelTest_def, auto)
+  from 0 have 1:  "\<exists> G2. transformDelTest G G2"
+    by blast
+  from 1 show ?thesis
+    apply (unfold transformDel_def) 
+    by (smt (verit, ccfv_SIG) DelFinite b some_eq_imp)
 qed
 
 lemma TermPreservesStart_Part1:
@@ -4237,11 +4293,110 @@ proof-
     by (unfold DelStartPropRel_def, auto)
 qed
 
+fun toCNF :: "('n, 't) NTGen \<Rightarrow> ('n, 't) CFG \<Rightarrow> ('n, 't) CFG"
+  where "toCNF Gen G1 = (if (\<not> (NewNTGen Gen) \<or> \<not> (finiteCFG G1)) then G1 else 
+        (transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G1) "
 
+definition branchRule :: "('n, 't) Rule \<Rightarrow> bool"
+  where "branchRule R \<equiv> \<exists> N1 N2. ([NT N1, NT N2]) = snd R"
 
+definition leafRule :: "('n, 't) Rule \<Rightarrow> bool"
+  where "leafRule R \<equiv> \<exists> t. ([T t]) = snd R"
 
+definition isCNF :: "('n, 't) CFG \<Rightarrow> bool"
+  where "isCNF G \<equiv> (\<forall> R \<in> (snd G). (R = (fst G, []) \<or> branchRule R \<or> leafRule R) \<and> NT (fst G) \<notin> set (snd R))"
 
+lemma propertiesMerge:
+  assumes a: "StartProperty G"
+  assumes b: "TermProperty G"
+  assumes c: "BinProperty G"
+  assumes d: "DelProperty G"
+  assumes e: "UnitProperty G"
+  shows      "isCNF G"
+proof-
+  from a have 0: "(\<forall> R \<in> (snd G). NT (fst G) \<notin> set (snd R))"
+    by (unfold StartProperty_def, auto)
+  from d have 1: "(\<forall> R \<in> (snd G). ((snd R = []) \<longrightarrow> fst R = fst G))"
+    by (unfold DelProperty_def, blast)
+  from c have 2: "(\<forall> R \<in> (snd G). (\<exists> a b. snd R = [a, b]) \<or> (\<exists> a. snd R = [a]) \<or> snd R = [])"
+    apply (unfold BinProperty_def) 
+    by (metis (no_types, opaque_lifting) Suc_1 Suc_eq_plus1 add.assoc impossible_Cons length_Cons list.exhaust trans_le_add2)
+  from b have 3: "(\<forall> R \<in> (snd G). (\<forall> a b. snd R \<noteq> [T a, b]) \<and> (\<forall> a b. snd R \<noteq> [a, T b]))"
+    apply (unfold TermProperty_def) 
+    by (metis list.sel(3) list.set_intros(1) list.set_intros(2) not_Cons_self2)
+  from 3 and 2 have 4: "(\<forall> R \<in> (snd G). (\<exists> a b. snd R = [NT a, NT b]) \<or> (\<exists> a. snd R = [a]) \<or> snd R = [])"
+    by (metis Elem.exhaust)
+  from 4 and e have 5: "(\<forall> R \<in> (snd G). (\<exists> a b. snd R = [NT a, NT b]) \<or> (\<exists> a. snd R = [T a]) \<or> snd R = [])"
+    apply (unfold UnitProperty_def IsUnitProductionRule_def)
+    by (metis Elem.exhaust)
+  from 0 and 1 and 5 show ?thesis
+    apply (unfold isCNF_def branchRule_def leafRule_def)
+    by (metis prod.exhaust_sel)
+qed
 
+theorem verifyToCNF:
+  assumes a: "NewNTGen Gen"
+  assumes b: "finiteCFG G"
+  shows      "isCNF (toCNF Gen G) \<and> \<lbrakk>toCNF Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+proof-
+  from a and b have 0: "\<lbrakk>transformStart Gen G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    by (simp add: verifyStart)
+  from a and b have 1: "StartProperty (transformStart Gen G)"
+    using StartProp_Part2 by blast
+  from a and b have 2: "finiteCFG (transformStart Gen G)"
+    by (simp add: finiteStart)
+  from 0 and a have 3: "\<lbrakk>((transformTerm Gen) o (transformStart Gen)) G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    by (simp add: "2" TermTerminate_Part13)
+  from 2 and a have 4: "finiteCFG (((transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: TermTerminate_Part16)
+  from 2 and a and 1 have 5: "StartProperty (((transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: TermPreservesStart_Part2)
+  from 2 and a have 6: "TermProperty (((transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: verifyTerm)
+  from 4 and a and 3 have 7: "\<lbrakk>((transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    by (simp add: BinTerminate_Part13)
+  from 4 and a have 8: "finiteCFG (((transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: verifyBin)
+  from 5 and a and 4 have 9: "StartProperty (((transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: BinPreservesStart_Part2)
+  from 6 and a and 4 have 10: "TermProperty (((transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: BinPreservesTerm_Part2)
+  from a and 4 have 11: "BinProperty (((transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: verifyBin)
+  from 8 and 7 have 12: "\<lbrakk>(transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    by (simp add: verifyDel)
+  from 8 have 13: "finiteCFG ((transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: finiteDel)
+  from 8 and 9 have 14: "StartProperty ((transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: DelPreservesStart_Part2)
+  from 8 and 10 have 15: "TermProperty ((transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: DelPreservesTerm_Part2)
+  from 8 and 11 have 16: "BinProperty ((transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: DelPreservesBin_Part2)
+  from 8 have 17: "DelProperty ((transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: DelProp_Part2)
+  from 13 and 12 have 18: "\<lbrakk>(transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G\<rbrakk> = \<lbrakk>G\<rbrakk>"
+    by (simp add: UnitTerminate_Part13)
+  from 13 have 19: "finiteCFG ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: UnitTerminate_Part16)
+  from 13 and 14 have 20: "StartProperty ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: UnitPreservesStart_Part2)
+  from 13 and 15 have 21: "TermProperty ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: UnitPreservesTerm_Part2)
+  from 13 and 16 have 22: "BinProperty ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: UnitPreservesBin_Part2)
+  from 13 and 17 and 14 have 23: "DelProperty ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: UnitPreservesDelStart_Part3)
+  from 13 have 24: "UnitProperty ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    by (simp add: verifyUnit)
+  from 24 and 23 and 22 and 21 and 20 have 25: "isCNF ((transformUnit o transformDel o (transformBin Gen) o (transformTerm Gen) o (transformStart Gen)) G)"
+    using propertiesMerge 
+    by blast
+  from a and b have 26: "isCNF (toCNF Gen G)"
+    using "25" by auto
+  from a and b and 26 and 18 show ?thesis
+    by force
+qed
 
 
 
